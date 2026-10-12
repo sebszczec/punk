@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // Użyj funkcji IntelliSense, aby dowiedzieć się, które atrybuty istnieją na potrzeby debugowania języka C#
+            // Użyj najechania kursorem w przypadku opisu istniejących atrybutów
+            // Aby uzyskać więcej informacji, odwiedź witrynę https://github.com/dotnet/vscode-csharp/blob/main/debugger-launchjson.md
+            "name": ".NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            // Jeśli zmieniono platformy docelowe, upewnij się, że zaktualizowano ścieżkę programu.
+            "program": "${workspaceFolder}/Punk/bin/Debug/net10.0/Punk.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/Punk",
+            // Aby uzyskać więcej informacji o polu „console”, zobacz https://aka.ms/VSCode-CS-LaunchJson-Console
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach"
+        }
+    ]
+}
