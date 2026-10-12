@@ -35,6 +35,7 @@ public sealed class MainWindow : Window
     private readonly ObservableCollection<string> _rows = [];
     private bool _firstLoadDone;
     private bool _scanning;
+    private bool _rescanQueued;
     private bool _dialogOpen;
     private MessageKind _messageKind = MessageKind.Info;
     private readonly DateTime _started = DateTime.UtcNow;
@@ -246,7 +247,11 @@ public sealed class MainWindow : Window
 
     private async Task RefreshAsync(bool splash)
     {
-        if (_scanning) return;
+        if (_scanning)
+        {
+            _rescanQueued = true; // a scan is in flight with possibly stale settings: run again when it finishes
+            return;
+        }
         _scanning = true;
         _lastRefresh = DateTime.UtcNow;
 
@@ -272,6 +277,12 @@ public sealed class MainWindow : Window
             _scanning = false;
             if (_splashActive) _pending = result;
             else ApplyResult(result);
+
+            if (_rescanQueued)
+            {
+                _rescanQueued = false;
+                _ = RefreshAsync(splash: false);
+            }
         });
     }
 
@@ -513,7 +524,7 @@ public sealed class MainWindow : Window
         }
         else if (key == Key.F3 || key == Key.O.WithCtrl)
         {
-            _config.SortBy = _config.SortBy == SortMode.Name ? SortMode.LastPlayed : SortMode.Name;
+            _config.SortBy = (SortMode)(((int)_config.SortBy + 1) % Enum.GetValues<SortMode>().Length);
             try { ConfigStore.Save(_config); } catch { /* sort order still applies for this session */ }
             RebuildList();
             key.Handled = true;

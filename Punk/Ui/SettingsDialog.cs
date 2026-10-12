@@ -70,7 +70,7 @@ public static class SettingsDialog
                 error = $"Refresh interval must be 0 (off) or at least {AppConfig.MinRefreshSeconds} seconds.";
             else if (!AppConfig.TryParseColor(accent.Text, out _))
                 error = "Accent color must look like #66C0F4.";
-            else if (steamPath.Text.Length > 0 && !Directory.Exists(Path.Combine(steamPath.Text, "steamapps")))
+            else if (steamPath.Text.Trim().Length > 0 && !Directory.Exists(Path.Combine(steamPath.Text.Trim(), "steamapps")))
                 error = "Steam path must contain a 'steamapps' folder.";
             else
                 error = null;
@@ -121,7 +121,8 @@ public static class SettingsDialog
 
         if (!saved) return null;
         edit.Normalize();
-        ConfigStore.Save(edit);
+        try { ConfigStore.Save(edit); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* settings still apply for this session */ }
         return edit;
     }
 }

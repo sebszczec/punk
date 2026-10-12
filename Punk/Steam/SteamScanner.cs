@@ -101,9 +101,15 @@ public static class SteamScanner
         }
 
         result.AddRange(config.ExtraLibraryPaths.Where(p => !string.IsNullOrWhiteSpace(p)));
-        List<string> all = [.. result.Select(p => Path.GetFullPath(p.Trim())).Distinct(StringComparer.OrdinalIgnoreCase)];
+        List<string> all = [.. result.Select(SafeFullPath).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase)];
         missing.AddRange(all.Where(p => !Directory.Exists(Path.Combine(p, "steamapps"))));
         return all;
+    }
+
+    private static string? SafeFullPath(string path)
+    {
+        try { return Path.GetFullPath(path.Trim()); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
     }
 
     private static Game? ReadManifest(string library, string file, Dictionary<long, LocalStats> stats)

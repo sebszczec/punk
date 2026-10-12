@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Collections.Concurrent;
+using System.Text.Json;
 using Microsoft.Win32;
 using Punk.Config;
 using Punk.Steam;
@@ -32,7 +33,7 @@ public static class BattleNetScanner
     ];
 
     // Folder sizes are expensive to compute; keep them for the life of the process.
-    private static readonly Dictionary<string, long> SizeCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, long> SizeCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static string ConfigPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Battle.net", "Battle.net.config");
 
@@ -87,11 +88,9 @@ public static class BattleNetScanner
         if (!OperatingSystem.IsWindows()) return null;
 
         // "D:\Gry\Battle.net\Battle.net.exe" --uri="%1"
-        if (Registry.GetValue(@"HKEY_CLASSES_ROOT\battlenet\shell\open\command", "", null) is string cmd)
-        {
-            string path = cmd.StartsWith('"') ? cmd[1..cmd.IndexOf('"', 1)] : cmd.Split(' ')[0];
-            if (File.Exists(path)) return path;
-        }
+        if (Registry.GetValue(@"HKEY_CLASSES_ROOT\battlenet\shell\open\command", "", null) is string cmd
+            && ExecutableFromCommand(cmd) is { } path && File.Exists(path))
+            return path;
 
         foreach (string env in new[] { "ProgramFiles(x86)", "ProgramFiles" })
         {
@@ -101,6 +100,16 @@ public static class BattleNetScanner
             if (File.Exists(candidate)) return candidate;
         }
         return null;
+    }
+
+    /// <summary>Extracts the executable from a registry shell command such as <c>"C:\x\a.exe" --uri="%1"</c>.</summary>
+    internal static string? ExecutableFromCommand(string cmd)
+    {
+        cmd = cmd.Trim();
+        if (cmd.Length == 0) return null;
+        if (cmd[0] != '"') return cmd.Split(' ')[0];
+        int end = cmd.IndexOf('"', 1);
+        return end > 1 ? cmd[1..end] : null;
     }
 
     private static JsonElement? ReadConfig()

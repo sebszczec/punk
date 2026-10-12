@@ -53,3 +53,7 @@ wsl -d Ubuntu-22.04 -e bash -c "cd <repo>/tools/SessionTest/out-linux && chmod +
 - Folder size scans are slow: cache per path for the process lifetime (see `BattleNetScanner.DirSize`); same for exe-name lists (`GameProcesses`).
 - Leftover folders without the executable are NOT installs (Diablo IV on this machine) - require the exe.
 - Do not edit the user's real launcher config files; tests that change `%APPDATA%\Punk\config.json` must restore it.
+- Parse registry shell commands (`"C:\x\Client.exe" --uri="%1"`) with `BattleNetScanner.ExecutableFromCommand`, never ad-hoc `IndexOf('"')` slicing (throws on malformed values). Wrap anything that touches user-supplied paths (`Path.GetFullPath`) so one bad entry cannot abort a whole scan.
+- A game's install folder must never resolve to a shared parent (empty Steam `installdir` -> `steamapps/common`), or every game in it looks "running". `GameFolders.InstallFolder` returns "" in that case; keep that invariant for new launchers.
+- Scans run on thread-pool threads and may overlap: static caches must be `ConcurrentDictionary`/locked. Redirected child-process pipes must be drained. Exceptions in `GameSessionTracker.Changed` subscribers are swallowed so the poll loop survives.
+- Settings changes while a scan is in flight queue one more scan (`_rescanQueued` in `MainWindow`), otherwise they are ignored until the next interval.

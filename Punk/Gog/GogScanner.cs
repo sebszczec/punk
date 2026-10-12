@@ -78,11 +78,9 @@ public static class GogScanner
         }
 
         // "C:\Program Files (x86)\GOG Galaxy\GalaxyClient.exe" /urlProtocol="%1"
-        if (Registry.GetValue(@"HKEY_CLASSES_ROOT\goggalaxy\shell\open\command", "", null) is string { Length: > 0 } cmd)
-        {
-            string path = cmd.StartsWith('"') ? cmd[1..cmd.IndexOf('"', 1)] : cmd.Split(' ')[0];
-            if (File.Exists(path)) return path;
-        }
+        if (Registry.GetValue(@"HKEY_CLASSES_ROOT\goggalaxy\shell\open\command", "", null) is string cmd
+            && BattleNetScanner.ExecutableFromCommand(cmd) is { } path && File.Exists(path))
+            return path;
 
         foreach (string env in new[] { "ProgramFiles(x86)", "ProgramFiles" })
         {

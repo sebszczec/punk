@@ -58,7 +58,7 @@ public sealed class AppConfig
     {
         rgb = default;
         if (text is not { Length: 7 } || text[0] != '#') return false;
-        if (!int.TryParse(text.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int v)) return false;
+        if (!int.TryParse(text.AsSpan(1), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int v)) return false;
         rgb = ((byte)(v >> 16), (byte)(v >> 8), (byte)v);
         return true;
     }

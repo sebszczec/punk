@@ -46,7 +46,7 @@ public sealed class GameSessionTracker : IDisposable
     {
         GameSession session = new(game, GameFolders.InstallFolder(game));
         lock (_active) _active[game.Key] = session;
-        Changed?.Invoke(session);
+        Notify(session);
         return session;
     }
 
@@ -105,8 +105,14 @@ public sealed class GameSessionTracker : IDisposable
             if (s.State == before) continue;
             if (s.State is SessionState.Exited or SessionState.NotStarted)
                 lock (_active) _active.Remove(s.Game.Key);
-            Changed?.Invoke(s);
+            Notify(s);
         }
+    }
+
+    private void Notify(GameSession s)
+    {
+        try { Changed?.Invoke(s); }
+        catch (Exception) { /* a faulty subscriber must not stop session tracking */ }
     }
 
     public void Dispose()

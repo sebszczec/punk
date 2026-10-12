@@ -36,6 +36,12 @@ public static class SteamLauncher
     {
         ProcessStartInfo info = new(file) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in args) info.ArgumentList.Add(a);
-        Process.Start(info);
+        using Process? p = Process.Start(info);
+        if (p is null) return;
+        // Redirected only to keep the TUI clean; drain so a chatty client can never block on a full pipe.
+        p.OutputDataReceived += static (_, _) => { };
+        p.ErrorDataReceived += static (_, _) => { };
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
     }
 }
