@@ -62,6 +62,9 @@ public sealed class MainWindow : Window
     private string? _launchStatus;          // launcher progress before the session exists (e.g. Battle.net cold start)
     private DateTime _sessionInfoUntil;     // how long to keep a finished-session line visible
     private readonly TextField _search = new();
+    private const int _tempsWidth = 26;
+    private readonly Label _temps = new();
+    private bool _tempsReading;
     private readonly Label _searchIcon = new();
     private readonly FrameView _listFrame = new();
     private readonly FrameView _detailsFrame = new();
@@ -159,7 +162,11 @@ public sealed class MainWindow : Window
         _searchIcon.Text = _sym.Search;
         _search.X = 3;
         _search.Y = 1;
-        _search.Width = Dim.Fill(1);
+        _search.Width = Dim.Fill(_tempsWidth + 2);
+
+        _temps.X = Pos.AnchorEnd(_tempsWidth + 1);
+        _temps.Y = 1;
+        _temps.Width = _tempsWidth;
 
         _listFrame.X = 0;
         _listFrame.Y = 3;
@@ -203,7 +210,7 @@ public sealed class MainWindow : Window
             new Shortcut { Key = Key.F2, Title = $"{_sym.Gear} Settings" },
             new Shortcut { Key = Key.Q.WithCtrl, Title = "Quit" });
 
-        _main.Add(_title, _sessionInfo, _refreshInfo, _searchIcon, _search, _listFrame, _detailsFrame, _message, _hints);
+        _main.Add(_title, _sessionInfo, _refreshInfo, _searchIcon, _search, _temps, _listFrame, _detailsFrame, _message, _hints);
     }
 
     private void ApplyTheme()
@@ -226,6 +233,7 @@ public sealed class MainWindow : Window
         _detailsTitle.SetScheme(Theme.Colored(Theme.Accent3));
         _detailsBody.SetScheme(Theme.Colored(Theme.Text));
         _refreshInfo.SetScheme(Theme.Colored(Theme.Muted));
+        _temps.SetScheme(Theme.Colored(Theme.Muted));
         _sessionInfo.SetScheme(Theme.Colored(Theme.Success));
         _banner[0].SetScheme(Theme.Colored(accent));
         _banner[1].SetScheme(Theme.Colored(Theme.Accent2));
@@ -469,6 +477,7 @@ public sealed class MainWindow : Window
     {
         if (Theme.Current == UiPreset.Ambient) ApplyTheme(); // slow color drift
         UpdateSessionInfo();
+        if (_tick % (3000 / TickMs) == 0) PollTemperatures();
 
         // Expire "new" flags.
         if (_newUntil.Count > 0 && _newUntil.Values.Any(t => t <= DateTime.UtcNow))
@@ -490,6 +499,20 @@ public sealed class MainWindow : Window
 
         if (!_scanning && !_dialogOpen && _config.RefreshIntervalSeconds > 0 && since >= _config.RefreshIntervalSeconds)
             _ = RefreshAsync(splash: false);
+    }
+
+    private void PollTemperatures()
+    {
+        if (_tempsReading) return;
+        _tempsReading = true;
+        _ = Task.Run(Temperatures.Read).ContinueWith(t => _app.Invoke(() =>
+        {
+            _tempsReading = false;
+            Temps v = t.IsCompletedSuccessfully ? t.Result : default;
+            static string Fmt(string label, double? c) => c is { } d ? $"{label} {d:0}°C" : $"{label} n/a";
+            string text = v.Cpu is null && v.Gpu is null ? "" : $"{Fmt("CPU", v.Cpu)} · {Fmt("GPU", v.Gpu)}";
+            _temps.Text = text.PadLeft(_tempsWidth);
+        }));
     }
 
     // ---------------------------------------------------------------- keys & actions

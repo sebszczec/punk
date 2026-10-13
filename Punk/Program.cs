@@ -3,6 +3,13 @@ using Punk.Ui;
 using Terminal.Gui.App;
 using Terminal.Gui.Input;
 using Terminal.Gui.Testing;
+using Punk.Launch;
+
+if (Environment.GetEnvironmentVariable("PUNK_TEMPS_DIAG") is { } diagFile)
+{
+    TemperatureDiag.Run(diagFile);
+    return;
+}
 
 AppConfig config = ConfigStore.Load(out string? warning);
 
