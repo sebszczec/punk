@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 # --- Dependencies -----------------------------------------------------------
 # Installs whatever is missing via winget. Installing needs an elevated terminal; nothing is installed when all is present.
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole('Administrator')
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 function Install-Winget($id, $what) {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw "$what is missing and winget is not available - install it manually." }
