@@ -100,6 +100,13 @@ public sealed class MainWindow : Window
 
         _list.Source = new ListWrapper<string>(_rows);
         _list.ValueChanged += (_, _) => UpdateDetails();
+        // Mouse double-click on a row fires Accepting (same as Enter); the list itself never has focus.
+        _list.Accepting += (_, e) =>
+        {
+            if (_splashActive || _dialogOpen) return;
+            LaunchSelected();
+            e.Handled = true;
+        };
         _search.ValueChanged += (_, _) => ApplyFilter();
 
         _app.Keyboard.KeyDown += OnAppKeyDown;
