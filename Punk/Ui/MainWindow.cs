@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using Punk.BattleNet;
+using Punk.Epic;
 using Punk.Gog;
 using Punk.Config;
 using Punk.Launch;
@@ -28,6 +29,7 @@ public sealed class MainWindow : Window
     private string? _steamRoot;
     private string? _bnetClient;
     private string? _gogClient;
+    private string? _epicClient;
     private List<Game> _allGames = [];
     private List<Game> _visible = [];
     private readonly Dictionary<string, DateTime> _newUntil = [];
@@ -300,7 +302,7 @@ public sealed class MainWindow : Window
         if (r.Error is not null)
         {
             SetMessage($"{_sym.Warn} {r.Error} Open settings ({_sym.Gear} F2) to set paths.", MessageKind.Error);
-            _steamRoot = null; _bnetClient = null; _gogClient = null;
+            _steamRoot = null; _bnetClient = null; _gogClient = null; _epicClient = null;
             foreach (Game g in _allGames) _stale.Add(g.Key);
             RebuildList();
             if (!_firstLoadDone) { _allGames = []; RebuildList(); _firstLoadDone = true; }
@@ -310,6 +312,7 @@ public sealed class MainWindow : Window
         _steamRoot = r.SteamRoot;
         _bnetClient = r.BattleNetClient;
         _gogClient = r.GogClient;
+        _epicClient = r.EpicClient;
 
         // Safeguard: if a launcher or library folder is unreachable (moved, unplugged drive, client reinstalling),
         // keep the games we knew about from it instead of letting the list silently empty out.
@@ -317,9 +320,10 @@ public sealed class MainWindow : Window
         bool steamGone = r.SteamRoot is null;
         bool bnetGone = _config.BattleNetEnabled && !r.BattleNetFound;
         bool gogGone = _config.GogEnabled && !r.GogFound;
+        bool epicGone = _config.EpicEnabled && !r.EpicFound;
         HashSet<string> found = [.. r.Games.Select(g => g.Key)];
         List<Game> retained = [.. _allGames.Where(g => !found.Contains(g.Key) &&
-            ((g.Source == GameSource.Steam && steamGone) || (g.Source == GameSource.BattleNet && bnetGone) || (g.Source == GameSource.Gog && gogGone) || missing.Contains(g.LibraryPath)))];
+            ((g.Source == GameSource.Steam && steamGone) || (g.Source == GameSource.BattleNet && bnetGone) || (g.Source == GameSource.Gog && gogGone) || (g.Source == GameSource.Epic && epicGone) || missing.Contains(g.LibraryPath)))];
 
         _stale.Clear();
         foreach (Game g in retained) _stale.Add(g.Key);
@@ -374,7 +378,7 @@ public sealed class MainWindow : Window
                 : _stale.Contains(g.Key) ? _sym.Warn
                 : _newUntil.TryGetValue(g.Key, out DateTime until) && until > DateTime.UtcNow ? _sym.Added
                 : g.LastPlayed is { } lp && DateTimeOffset.UtcNow - lp < TimeSpan.FromDays(7) ? _sym.Hot : _sym.Cold;
-            _rows.Add($" {marker} {Format.Fit(g.Name, nameW)} {(g.Source switch { GameSource.Steam => "Steam", GameSource.Gog => "GOG", _ => "B.net" }),-5} {Format.Ago(g.LastPlayed),9} {Format.Playtime(g.Playtime),7} {Format.Size(g.SizeBytes),8}");
+            _rows.Add($" {marker} {Format.Fit(g.Name, nameW)} {(g.Source switch { GameSource.Steam => "Steam", GameSource.Gog => "GOG", GameSource.Epic => "Epic", _ => "B.net" }),-5} {Format.Ago(g.LastPlayed),9} {Format.Playtime(g.Playtime),7} {Format.Size(g.SizeBytes),8}");
         }
 
         int idx = keep is { } id ? _visible.FindIndex(g => g.Key == id) : -1;
@@ -421,7 +425,7 @@ public sealed class MainWindow : Window
             $"{_sym.Hot} Playtime      {Format.Playtime(g.Playtime)}\n" +
             $"{_sym.Disk} Size          {Format.Size(g.SizeBytes)}\n" +
             $"# {(g.Source == GameSource.Steam ? "AppID" : "Product")}         {g.Id}\n" +
-            $"  Platform      {(g.Source switch { GameSource.Steam => "Steam", GameSource.Gog => "GOG Galaxy", _ => "Battle.net" })}\n" +
+            $"  Platform      {(g.Source switch { GameSource.Steam => "Steam", GameSource.Gog => "GOG Galaxy", GameSource.Epic => "Epic Games Store", _ => "Battle.net" })}\n" +
             $"  Library       {g.LibraryPath}\n" +
             $"  Folder        {g.InstallDir}\n\n" +
             (_stale.Contains(g.Key) ? $"{_sym.Warn} Not reachable right now - showing last known data\n" : "") +
@@ -580,7 +584,7 @@ public sealed class MainWindow : Window
         // Launchers can block (Battle.net waits for a cold-started client), so launch off the UI thread.
         // The launcher only reports that the request was accepted; the session tracker then follows the
         // game process itself (Starting -> Playing -> Closed), the same way for every launcher.
-        string? steamRoot = _steamRoot, client = _bnetClient, gogClient = _gogClient;
+        string? steamRoot = _steamRoot, client = _bnetClient, gogClient = _gogClient, epicClient = _epicClient;
         SetMessage("", MessageKind.Info);
         ShowLaunchStatus($"Launching {g.Name}…");
         _ = Task.Run(() =>
@@ -591,6 +595,7 @@ public sealed class MainWindow : Window
                 GameSource.Steam => SteamLauncher.Launch(g, steamRoot),
                 GameSource.BattleNet => BattleNetLauncher.Launch(g, client, status),
                 GameSource.Gog => GogLauncher.Launch(g, gogClient, status),
+                GameSource.Epic => EpicLauncher.Launch(g, epicClient, status),
                 _ => $"No launcher for {g.Source}.",
             };
             _app.Invoke(() =>
@@ -689,6 +694,11 @@ public sealed class MainWindow : Window
             _gogClient = GogScanner.FindClient(); // Galaxy may have moved since the last scan
             if (_gogClient is null) return "GOG Galaxy client not found.";
         }
+        if (g.Source == GameSource.Epic && (_epicClient is null || !File.Exists(_epicClient)))
+        {
+            _epicClient = EpicScanner.FindClient(); // the launcher may have moved since the last scan
+            if (_epicClient is null) return "Epic Games Launcher not found.";
+        }
         return null;
     }
 
@@ -704,6 +714,7 @@ public sealed class MainWindow : Window
                 || updated.HideSteamTools != _config.HideSteamTools
                 || updated.BattleNetEnabled != _config.BattleNetEnabled
                 || updated.GogEnabled != _config.GogEnabled
+                || updated.EpicEnabled != _config.EpicEnabled
                 || !updated.BattleNetExtraRoots.SequenceEqual(_config.BattleNetExtraRoots)
                 || !updated.ExtraLibraryPaths.SequenceEqual(_config.ExtraLibraryPaths);
 

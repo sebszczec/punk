@@ -33,6 +33,9 @@ public sealed class AppConfig
     /// <summary>Include installed GOG Galaxy games (Windows only).</summary>
     public bool GogEnabled { get; set; } = true;
 
+    /// <summary>Include installed Epic Games Store games (Windows only).</summary>
+    public bool EpicEnabled { get; set; } = true;
+
     /// <summary>Accent color as #RRGGBB.</summary>
     public string AccentColor { get; set; } = "#66C0F4";
 
@@ -72,6 +75,7 @@ public sealed class AppConfig
         BattleNetEnabled = BattleNetEnabled,
         BattleNetExtraRoots = [.. BattleNetExtraRoots],
         GogEnabled = GogEnabled,
+        EpicEnabled = EpicEnabled,
         AccentColor = AccentColor,
         Preset = Preset,
         UseAsciiSymbols = UseAsciiSymbols,

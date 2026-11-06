@@ -31,6 +31,7 @@ public static class SettingsDialog
         CheckBox bnet = new() { X = 1, Y = 13, Text = "Include Battle.net games (Windows)", Value = edit.BattleNetEnabled ? CheckState.Checked : CheckState.UnChecked };
         CheckBox ascii = new() { X = 1, Y = 12, Text = "Use plain ASCII symbols", Value = edit.UseAsciiSymbols ? CheckState.Checked : CheckState.UnChecked };
         CheckBox gog = new() { X = 1, Y = 14, Text = "Include GOG Galaxy games (Windows)", Value = edit.GogEnabled ? CheckState.Checked : CheckState.UnChecked };
+        CheckBox epic = new() { X = 1, Y = 15, Text = "Include Epic Games Store games (Windows)", Value = edit.EpicEnabled ? CheckState.Checked : CheckState.UnChecked };
         Button sort = new() { X = fx, Y = 16, Text = $"{edit.SortBy}", NoDecorations = false };
         Label hint = new() { X = 1, Y = 18, Width = Dim.Fill(1), Text = $"Config: {ConfigStore.Path}" };
         Label err = new() { X = 1, Y = 19, Width = Dim.Fill(1), Text = "" };
@@ -56,7 +57,7 @@ public static class SettingsDialog
             L("Extra libraries (;)", 5), extra,
             L("Battle.net roots (;)", 7), bnetRoots,
             L("Accent color (#RRGGBB)", 9), accent, swatch,
-            hideTools, ascii, bnet, gog,
+            hideTools, ascii, bnet, gog, epic,
             L("Sort by (Enter cycles)", 16), sort,
             hint, err);
 
@@ -89,6 +90,7 @@ public static class SettingsDialog
             edit.BattleNetExtraRoots = [.. bnetRoots.Text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
             edit.BattleNetEnabled = bnet.Value == CheckState.Checked;
             edit.GogEnabled = gog.Value == CheckState.Checked;
+            edit.EpicEnabled = epic.Value == CheckState.Checked;
             edit.AccentColor = accent.Text.Trim();
             edit.HideSteamTools = hideTools.Value == CheckState.Checked;
             edit.UseAsciiSymbols = ascii.Value == CheckState.Checked;
@@ -104,6 +106,7 @@ public static class SettingsDialog
             bnetRoots.Text = "";
             bnet.Value = CheckState.Checked;
             gog.Value = CheckState.Checked;
+            epic.Value = CheckState.Checked;
             accent.Text = d.AccentColor;
             hideTools.Value = CheckState.Checked;
             ascii.Value = CheckState.UnChecked;

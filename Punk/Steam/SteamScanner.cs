@@ -9,7 +9,7 @@ public readonly record struct ScanProgress(double Fraction, string Message);
 public sealed record ScanResult(
     string? SteamRoot, string? BattleNetClient, IReadOnlyList<Game> Games, string? Error,
     IReadOnlyList<string>? Warnings = null, IReadOnlyList<string>? MissingPaths = null, bool BattleNetFound = false,
-    bool GogFound = false, string? GogClient = null);
+    bool GogFound = false, string? GogClient = null, bool EpicFound = false, string? EpicClient = null);
 
 public static class SteamScanner
 {
