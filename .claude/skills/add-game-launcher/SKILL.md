@@ -7,7 +7,7 @@ description: Add support for another game launcher (Epic, GOG, Ubisoft, EA, Xbox
 
 Rules every launcher must follow (same as Steam/Battle.net):
 - installed games only; scanned at startup behind the progress bar; rescanned on the configurable timer (default 60 s);
-- selectable from the list and launched with Enter; configurable from the F2 settings dialog;
+- selectable from the list and launched with Enter; configurable from the F2 settings dialog; per-game launch options (F6) only where the launcher can take arguments (Steam, GOG direct start);
 - resilient to moved/missing folders;
 - **the status follows the real game process**: Launching → Starting → Playing (elapsed) → Closed (played time), or "did not start". Never leave a "Launched" message that outlives the game.
 

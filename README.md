@@ -66,6 +66,8 @@ dotnet publish Punk/Punk.csproj -c Release -r linux-x64 --self-contained -p:Publ
 
 ## Keyboard shortcuts
 
+The bottom bar is clickable too: double-click an item (for example `F3 Sort`) to run it. A single click does nothing.
+
 | Key                     | Action                     |
 |-------------------------|----------------------------|
 | *type*                  | Filter games by name       |
@@ -76,6 +78,7 @@ dotnet publish Punk/Punk.csproj -c Release -r linux-x64 --self-contained -p:Publ
 | F3 / Ctrl+O             | Change sort order          |
 | F4                      | Cycle theme preset         |
 | F2 / Ctrl+S             | Settings                   |
+| F6                      | Launch options (Steam and GOG games) |
 | Ctrl+Q                  | Quit                       |
 
 ## Configuration

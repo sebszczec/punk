@@ -212,12 +212,13 @@ public sealed class MainWindow : Window
         _message.Width = Dim.Fill(1);
 
         _hints.Add(
-            new Shortcut { Key = Key.Enter, Title = $"{_sym.Play} Launch" },
-            new Shortcut { Key = Key.F5, Title = $"{_sym.Refresh} Refresh" },
-            new Shortcut { Key = Key.F3, Title = "Sort" },
-            new Shortcut { Key = Key.F4, Title = "Theme" },
-            new Shortcut { Key = Key.F2, Title = $"{_sym.Gear} Settings" },
-            new Shortcut { Key = Key.Q.WithCtrl, Title = "Quit" });
+            Hint(Key.Enter, $"{_sym.Play} Launch", LaunchSelected),
+            Hint(Key.F5, $"{_sym.Refresh} Refresh", RefreshNow),
+            Hint(Key.F3, "Sort", CycleSort),
+            Hint(Key.F4, "Theme", CyclePreset),
+            Hint(Key.F6, "Launch options", OpenLaunchOptions),
+            Hint(Key.F2, $"{_sym.Gear} Settings", OpenSettings),
+            Hint(Key.Q.WithCtrl, "Quit", () => _app.RequestStop()));
 
         _main.Add(_title, _sessionInfo, _refreshInfo, _searchIcon, _search, _temps, _listFrame, _detailsFrame, _message, _hints);
     }
@@ -435,6 +436,9 @@ public sealed class MainWindow : Window
             $"  Platform      {(g.Source switch { GameSource.Steam => "Steam", GameSource.Gog => "GOG Galaxy", GameSource.Epic => "Epic Games Store", _ => "Battle.net" })}\n" +
             $"  Library       {g.LibraryPath}\n" +
             $"  Folder        {g.InstallDir}\n\n" +
+            (_config.LaunchOptions.TryGetValue(g.Key, out string? extra)
+                ? $"  Launch opts   {extra}{(g.Source == GameSource.Gog ? "  (started directly, not via Galaxy)" : "")}\n"
+                : "") +
             (_stale.Contains(g.Key) ? $"{_sym.Warn} Not reachable right now - showing last known data\n" : "") +
             $"{_sym.Play} Press Enter to launch";
     }
@@ -550,22 +554,42 @@ public sealed class MainWindow : Window
         else if (key == Key.CursorUp) { Move(-1); key.Handled = true; }
         else if (key == Key.PageDown) { Move(10); key.Handled = true; }
         else if (key == Key.PageUp) { Move(-10); key.Handled = true; }
-        else if (key == Key.F5 || key == Key.R.WithCtrl)
-        {
-            SetMessage($"{_sym.Refresh} Refreshing…", MessageKind.Info);
-            _ = RefreshAsync(splash: false);
-            key.Handled = true;
-        }
-        else if (key == Key.F3 || key == Key.O.WithCtrl)
-        {
-            _config.SortBy = (SortMode)(((int)_config.SortBy + 1) % Enum.GetValues<SortMode>().Length);
-            try { ConfigStore.Save(_config); } catch { /* sort order still applies for this session */ }
-            RebuildList();
-            key.Handled = true;
-        }
+        else if (key == Key.F5 || key == Key.R.WithCtrl) { RefreshNow(); key.Handled = true; }
+        else if (key == Key.F3 || key == Key.O.WithCtrl) { CycleSort(); key.Handled = true; }
         else if (key == Key.F4) { CyclePreset(); key.Handled = true; }
         else if (key == Key.F2 || key == Key.S.WithCtrl) { OpenSettings(); key.Handled = true; }
+        else if (key == Key.F6) { OpenLaunchOptions(); key.Handled = true; }
         else if (key == Key.Esc && (_search.Text?.Length ?? 0) > 0) { _search.Text = ""; key.Handled = true; }
+    }
+
+    private void RefreshNow()
+    {
+        SetMessage($"{_sym.Refresh} Refreshing…", MessageKind.Info);
+        _ = RefreshAsync(splash: false);
+    }
+
+    private void CycleSort()
+    {
+        _config.SortBy = (SortMode)(((int)_config.SortBy + 1) % Enum.GetValues<SortMode>().Length);
+        try { ConfigStore.Save(_config); } catch { /* sort order still applies for this session */ }
+        RebuildList();
+    }
+
+    /// <summary>
+    /// A hint-bar item. Double-click on it runs <paramref name="run"/>, the same action as its key.
+    /// Handled on MouseEvent so a single click does nothing and the Shortcut's own default mouse handling cannot run it a second time.
+    /// </summary>
+    private Shortcut Hint(Key key, string title, Action run)
+    {
+        Shortcut s = new() { Key = key, Title = title };
+        s.MouseEvent += (_, e) =>
+        {
+            if ((e.Flags & MouseFlags.LeftButtonDoubleClicked) == 0) return;
+            e.Handled = true;
+            if (_splashActive || _dialogOpen) return;
+            run();
+        };
+        return s;
     }
 
     private void LaunchSelected()
@@ -592,6 +616,7 @@ public sealed class MainWindow : Window
         // The launcher only reports that the request was accepted; the session tracker then follows the
         // game process itself (Starting -> Playing -> Closed), the same way for every launcher.
         string? steamRoot = _steamRoot, client = _bnetClient, gogClient = _gogClient, epicClient = _epicClient;
+        string? launchOptions = _config.LaunchOptions.GetValueOrDefault(g.Key);
         SetMessage("", MessageKind.Info);
         ShowLaunchStatus($"Launching {g.Name}…");
         _ = Task.Run(() =>
@@ -599,9 +624,9 @@ public sealed class MainWindow : Window
             Action<string> status = s => _app.Invoke(() => ShowLaunchStatus(s));
             string? err = g.Source switch
             {
-                GameSource.Steam => SteamLauncher.Launch(g, steamRoot),
+                GameSource.Steam => SteamLauncher.Launch(g, steamRoot, launchOptions),
                 GameSource.BattleNet => BattleNetLauncher.Launch(g, client, status),
-                GameSource.Gog => GogLauncher.Launch(g, gogClient, status),
+                GameSource.Gog => GogLauncher.Launch(g, gogClient, status, launchOptions),
                 GameSource.Epic => EpicLauncher.Launch(g, epicClient, status),
                 _ => $"No launcher for {g.Source}.",
             };
@@ -707,6 +732,44 @@ public sealed class MainWindow : Window
             if (_epicClient is null) return "Epic Games Launcher not found.";
         }
         return null;
+    }
+
+    private void OpenLaunchOptions()
+    {
+        Game? g = SelectedGame;
+        if (g is null) return;
+        if (g.Source is not (GameSource.Steam or GameSource.Gog))
+        {
+            SetMessage($"{_sym.Warn} Launch options are only supported for Steam and GOG games for now.", MessageKind.Warning);
+            return;
+        }
+
+        _dialogOpen = true;
+        try
+        {
+            string? text = LaunchOptionsDialog.Show(_app, g.Name, _config.LaunchOptions.GetValueOrDefault(g.Key) ?? "", _scheme);
+            if (text is null) return;
+
+            if (text.Length == 0) _config.LaunchOptions.Remove(g.Key);
+            else _config.LaunchOptions[g.Key] = text;
+            _config.Normalize();
+
+            try { ConfigStore.Save(_config); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                SetMessage($"{_sym.Warn} Launch options apply for this session only: {ex.Message}", MessageKind.Warning);
+                UpdateDetails();
+                return;
+            }
+
+            SetMessage($"{_sym.Check} Launch options for {g.Name}: {(text.Length == 0 ? "cleared" : text)}", MessageKind.Success);
+            UpdateDetails();
+        }
+        finally
+        {
+            _dialogOpen = false;
+            _search.SetFocus();
+        }
     }
 
     private void OpenSettings()

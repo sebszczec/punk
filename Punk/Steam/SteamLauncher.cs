@@ -5,10 +5,16 @@ namespace Punk.Steam;
 
 public static class SteamLauncher
 {
-    /// <summary>Starts a game through the Steam client. Returns an error message, or null on success.</summary>
-    public static string? Launch(Game game, string? steamRoot)
+    /// <summary>
+    /// Starts a game through the Steam client. <paramref name="launchOptions"/> are passed to this run only
+    /// (steam://run/APPID//ARGS/), the way Steam's own "Launch options" field does, without changing it.
+    /// Returns an error message, or null on success.
+    /// </summary>
+    public static string? Launch(Game game, string? steamRoot, string? launchOptions = null)
     {
-        string uri = $"steam://rungameid/{game.Id}";
+        string uri = string.IsNullOrWhiteSpace(launchOptions)
+            ? $"steam://rungameid/{game.Id}"
+            : $"steam://run/{game.Id}//{Uri.EscapeDataString(launchOptions.Trim())}/";
         try
         {
             if (OperatingSystem.IsWindows())

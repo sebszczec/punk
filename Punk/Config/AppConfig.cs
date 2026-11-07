@@ -46,6 +46,9 @@ public sealed class AppConfig
 
     public SortMode SortBy { get; set; } = SortMode.LastPlayed;
 
+    /// <summary>Extra command-line arguments per game, keyed by <see cref="Punk.Steam.Game.Key"/> (e.g. "--launcher-skip").</summary>
+    public Dictionary<string, string> LaunchOptions { get; set; } = [];
+
     /// <summary>Clamps values into their valid ranges.</summary>
     public void Normalize()
     {
@@ -54,6 +57,9 @@ public sealed class AppConfig
         SteamPathOverride ??= "";
         ExtraLibraryPaths ??= [];
         BattleNetExtraRoots ??= [];
+        LaunchOptions ??= [];
+        foreach (string key in LaunchOptions.Where(kv => string.IsNullOrWhiteSpace(kv.Value)).Select(kv => kv.Key).ToList())
+            LaunchOptions.Remove(key);
         if (!TryParseColor(AccentColor, out _)) AccentColor = new AppConfig().AccentColor;
     }
 
@@ -80,5 +86,6 @@ public sealed class AppConfig
         Preset = Preset,
         UseAsciiSymbols = UseAsciiSymbols,
         SortBy = SortBy,
+        LaunchOptions = new(LaunchOptions),
     };
 }

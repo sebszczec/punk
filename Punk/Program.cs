@@ -62,7 +62,25 @@ if (dump is not null)
                 File.WriteAllText(Path.Combine(testLib, "steamapps", "appmanifest_999999.acf"),
                     "\"AppState\"\n{\n\t\"appid\"\t\"999999\"\n\t\"name\"\t\"Fake Test Game\"\n\t\"StateFlags\"\t\"4\"\n\t\"installdir\"\t\"Fake\"\n\t\"SizeOnDisk\"\t\"123456789\"\n}\n");
                 break;
-            case 36: Snap("after auto refresh"); app.RequestStop(); return false;
+            case 30: Press(Key.F3); break;
+            case 32: Snap("sort once"); break; // one F3 must move LastPlayed -> Name, not further (hint-bar double-fire guard)
+            case 33: _ = Task.Run(() => inj.InjectMouse(new Mouse { ScreenPosition = new(40, 29), Flags = MouseFlags.LeftButtonClicked }, opts)); break; // hint "Sort": single click must do nothing
+            case 35:
+                Snap("click sort");
+                // Two quick press/release pairs: the driver synthesizes LeftButtonDoubleClicked from them.
+                _ = Task.Run(async () =>
+                {
+                    Mouse at = new() { ScreenPosition = new(40, 29) }; // hint "Sort" (row 29 = hint bar)
+                    for (int c = 0; c < 2; c++)
+                    {
+                        inj.InjectMouse(new Mouse { ScreenPosition = at.ScreenPosition, Flags = MouseFlags.LeftButtonPressed }, opts);
+                        inj.InjectMouse(new Mouse { ScreenPosition = at.ScreenPosition, Flags = MouseFlags.LeftButtonReleased }, opts);
+                        await Task.Delay(50);
+                    }
+                });
+                break;
+            case 37: Snap("after auto refresh"); break;
+            case 38: Snap("dclick sort"); app.RequestStop(); return false;
         }
         return true;
     });
