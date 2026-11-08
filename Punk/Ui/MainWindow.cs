@@ -21,6 +21,8 @@ public sealed class MainWindow : Window
 {
     private const int TickMs = 50;
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
+    private static readonly TimeSpan ManualUpdateCheckGap = TimeSpan.FromMinutes(2);
+    private bool _updateCheckRunning;
 
     private readonly IApplication _app;
     private AppConfig _config;
@@ -122,20 +124,39 @@ public sealed class MainWindow : Window
         _ = RefreshAsync(splash: true);
     }
 
-    /// <summary>Checks GitHub at most once per <see cref="UpdateCheckInterval"/>; a found update is downloaded and installed on the next start.</summary>
-    private async Task CheckForUpdatesAsync()
+    /// <summary>
+    /// Checks GitHub at most once per <see cref="UpdateCheckInterval"/>; a found update is downloaded and installed on the next start.
+    /// <paramref name="manual"/> (F5) skips that wait, but still at most once per <see cref="ManualUpdateCheckGap"/>, to stay under GitHub's rate limit.
+    /// </summary>
+    private async Task CheckForUpdatesAsync(bool manual = false)
     {
-        if (!Updater.IsEnabled(_config)) return;
-        if (_config.LastUpdateCheck is { } last && DateTimeOffset.UtcNow - last < UpdateCheckInterval) return;
+        if (!Updater.IsEnabled(_config) || _updateCheckRunning) return;
+        TimeSpan gap = manual ? ManualUpdateCheckGap : UpdateCheckInterval;
+        if (_config.LastUpdateCheck is { } last && DateTimeOffset.UtcNow - last < gap)
+        {
+            if (manual) SetMessage($"{_sym.Check} Update check ran a moment ago. Try again shortly.", MessageKind.Info);
+            return;
+        }
 
+        _updateCheckRunning = true;
+        if (manual) SetMessage($"{_sym.Refresh} Checking for updates…", MessageKind.Info);
         string? staged = await Updater.CheckAndStageAsync();
 
         _app.Invoke(() =>
         {
+            _updateCheckRunning = false;
             _config.LastUpdateCheck = DateTimeOffset.UtcNow;
             try { ConfigStore.Save(_config); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* checked again later */ }
-            if (staged is not null) ShowUpdateNotice(staged);
+            if (staged is not null)
+            {
+                ShowUpdateNotice(staged);
+                if (manual) SetMessage($"{_sym.Check} Update v{staged} downloaded. Restart Punk to install it.", MessageKind.Success);
+            }
+            else if (manual)
+            {
+                SetMessage($"{_sym.Check} No newer version found (v{Updater.Current.ToString(3)} is current).", MessageKind.Info);
+            }
         });
     }
 
@@ -598,6 +619,7 @@ public sealed class MainWindow : Window
     {
         SetMessage($"{_sym.Refresh} Refreshing…", MessageKind.Info);
         _ = RefreshAsync(splash: false);
+        _ = CheckForUpdatesAsync(manual: true);
     }
 
     private void CycleSort()

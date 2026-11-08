@@ -34,6 +34,8 @@ Layout: `Punk/` (app, `Punk.csproj` holds `<Version>` and `<ApplicationIcon>`), 
 
 - **The taskbar icon belongs to the terminal host, not the app.** A console app has no window of its own. Under Windows Terminal (the default terminal on Windows 11 here) the taskbar shows the terminal icon, and Punk cannot change it. So the installer's shortcuts and `[Run]` start `{sys}\conhost.exe "{app}\Punk.exe"` with `IconFilename` set to `Punk.exe`, which gives a classic console window with the Punk icon. `Console.Title` is set to "Punk" in `Punk/Program.cs`. To check a build: start the shortcut, then read the window icon with `WM_GETICON`.
 
+- **Installed copies only learn about a release on their next update check.** `MainWindow.CheckForUpdatesAsync` checks at most every 6 hours (`UpdateCheckInterval`), and it stores `LastUpdateCheck` in `%APPDATA%\Punk\config.json`. A release published inside that window is invisible until the window closes, so a "why no notice?" report is usually this. F5 forces a check (at most every 2 minutes, `ManualUpdateCheckGap`). Check the state with `gh release view vX --json assets` and the config file. A running build only has the F5 change if it was built after it, so the change reaches users only in the next release.
+
 ## Smoke tests (after a build)
 1. `dotnet build Punk/Punk.csproj` must be clean (0 errors).
 2. Windows: `.\dist\win-x64\Punk.exe` in PowerShell, or the headless self-test (see `punk-tui-selftest`).
