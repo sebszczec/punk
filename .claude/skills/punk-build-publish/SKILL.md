@@ -5,6 +5,8 @@ description: Build, publish and smoke-test the Punk TUI (C#/.NET 10 + Terminal.G
 
 # Build and publish Punk
 
+Icon: `installer/punk.ico` is generated from `installer/icon/punk-icon.svg` by `installer/icon/build-ico.cjs` and committed. It needs `@resvg/resvg-js`, which is not committed: install it in a scratch folder with `npm install --prefix <scratch> @resvg/resvg-js`, then run `NODE_PATH=<scratch>/node_modules node installer/icon/build-ico.cjs`. The exe icon comes from `Punk/Punk.csproj` (`ApplicationIcon`); the installer uses it for the wizard and the desktop shortcut.
+
 Repo: `C:\Users\sebsz\source\punk` (`Punk/` project, `publish.ps1`, `scripts/linux_test.sh`, `dist/` is git-ignored).
 Requires .NET SDK 10 (a 6.0 SDK is also installed; `dotnet --version` should say 10.x).
 

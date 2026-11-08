@@ -29,6 +29,7 @@ OutputBaseFilename=Setup-Punk-{#Version}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=punk.ico
 UninstallDisplayName=Punk
 UninstallDisplayIcon={app}\Punk.exe
 CloseApplications=yes
@@ -37,9 +38,13 @@ RestartApplications=no
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[Tasks]
+Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: checkedonce
+
 [Icons]
 Name: "{group}\Punk"; Filename: "{app}\Punk.exe"
 Name: "{group}\Uninstall Punk"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\Punk"; Filename: "{app}\Punk.exe"; Tasks: desktopicon
 
 [InstallDelete]
 ; Leftovers of an in-app update (see Punk/Update/UpdateApplier.cs).

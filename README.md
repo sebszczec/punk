@@ -68,7 +68,9 @@ dotnet publish Punk/Punk.csproj -c Release -r linux-x64 --self-contained -p:Publ
 
 ### Install (Windows)
 
-Download `Setup-Punk-<version>.exe` from the [Releases page](https://github.com/sebszczec/punk/releases/latest) and run it. It installs per user (no administrator rights) into `%LOCALAPPDATA%\Programs\Punk`.
+Download `Setup-Punk-<version>.exe` from the [Releases page](https://github.com/sebszczec/punk/releases/latest) and run it. It installs per user (no administrator rights) into `%LOCALAPPDATA%\Programs\Punk`, adds a Start menu entry, and puts a Punk shortcut on the desktop (untick "Create a desktop shortcut" to skip it).
+
+The icon is the [Tabler Icons](https://tabler.io/icons) `device-gamepad-2` glyph (MIT license, see `installer/icon/LICENSE-tabler-icons.txt`).
 
 ### Updates
 
