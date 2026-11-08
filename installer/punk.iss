@@ -41,10 +41,12 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: checkedonce
 
+; Shortcuts start Punk through conhost.exe (classic console window). A console app has no window of its own,
+; and Windows Terminal would show its own icon on the taskbar; conhost takes the icon from the shortcut and exe.
 [Icons]
-Name: "{group}\Punk"; Filename: "{app}\Punk.exe"
+Name: "{group}\Punk"; Filename: "{sys}\conhost.exe"; Parameters: """{app}\Punk.exe"""; WorkingDir: "{app}"; IconFilename: "{app}\Punk.exe"
 Name: "{group}\Uninstall Punk"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Punk"; Filename: "{app}\Punk.exe"; Tasks: desktopicon
+Name: "{autodesktop}\Punk"; Filename: "{sys}\conhost.exe"; Parameters: """{app}\Punk.exe"""; WorkingDir: "{app}"; IconFilename: "{app}\Punk.exe"; Tasks: desktopicon
 
 [InstallDelete]
 ; Leftovers of an in-app update (see Punk/Update/UpdateApplier.cs).
@@ -56,6 +58,6 @@ Type: files; Name: "{app}\*.old"
 Type: files; Name: "{app}\*.new"
 
 [Run]
-Filename: "{app}\Punk.exe"; Description: "Launch Punk"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\conhost.exe"; Parameters: """{app}\Punk.exe"""; WorkingDir: "{app}"; Description: "Launch Punk"; Flags: nowait postinstall skipifsilent
 
 ; The user's settings live in %APPDATA%\Punk and are intentionally left alone on uninstall.

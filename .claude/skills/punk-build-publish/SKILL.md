@@ -32,6 +32,8 @@ Layout: `Punk/` (app, `Punk.csproj` holds `<Version>` and `<ApplicationIcon>`), 
 - **Publish fails with `Access to ... dist\win-x64\Punk.exe is denied`**: a Punk instance is running (often the user's). Check `Get-Process Punk`; ask the user to close it - do not kill a process you did not start.
 - A repo-root `dist/` from an earlier build can hold stale files; the package step rebuilds `dist/release` from scratch, but `dist/win-x64` is only overwritten by the publish.
 
+- **The taskbar icon belongs to the terminal host, not the app.** A console app has no window of its own. Under Windows Terminal (the default terminal on Windows 11 here) the taskbar shows the terminal icon, and Punk cannot change it. So the installer's shortcuts and `[Run]` start `{sys}\conhost.exe "{app}\Punk.exe"` with `IconFilename` set to `Punk.exe`, which gives a classic console window with the Punk icon. `Console.Title` is set to "Punk" in `Punk/Program.cs`. To check a build: start the shortcut, then read the window icon with `WM_GETICON`.
+
 ## Smoke tests (after a build)
 1. `dotnet build Punk/Punk.csproj` must be clean (0 errors).
 2. Windows: `.\dist\win-x64\Punk.exe` in PowerShell, or the headless self-test (see `punk-tui-selftest`).

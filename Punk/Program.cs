@@ -12,6 +12,9 @@ if (Environment.GetEnvironmentVariable("PUNK_TEMPS_DIAG") is { } diagFile)
     return;
 }
 
+// Title shows in the window title bar and the taskbar tooltip. Setting it fails without a console; that is fine.
+try { Console.Title = "Punk"; } catch (Exception) { }
+
 AppConfig config = ConfigStore.Load(out string? warning);
 
 // Installs an update downloaded by an earlier run. On success a new process is started and this one exits.
