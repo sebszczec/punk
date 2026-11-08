@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- Release version. build.ps1 -Version / -Bump writes it; build.ps1 -Release publishes it. -->
-    <Version>1.0.5</Version>
+    <Version>1.0.6</Version>
     <ApplicationIcon>..\installer\punk.ico</ApplicationIcon>
   </PropertyGroup>
 
