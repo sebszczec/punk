@@ -2,6 +2,8 @@
 
 **One keyboard-driven terminal launcher for all your installed PC games.**
 
+**⬇️ [Download the latest release](https://github.com/sebszczec/punk/releases/latest)**: Windows installer (`Setup-Punk-<version>.exe`) and Linux build.
+
 Punk scans your Steam, Battle.net and GOG Galaxy installs, shows them in a single list, and starts any of them with Enter. It runs in the terminal, works on Windows and Linux, and is built with C# / .NET 10 and [Terminal.Gui](https://github.com/gui-cs/Terminal.Gui) 2.5.
 
 ![Punk showing Steam, GOG and Battle.net games in one list, with details for the selected game](docs/screenshot.png)
