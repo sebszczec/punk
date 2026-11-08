@@ -23,6 +23,7 @@ public sealed class MainWindow : Window
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
     private static readonly TimeSpan ManualUpdateCheckGap = TimeSpan.FromMinutes(2);
     private bool _updateCheckRunning;
+    private bool _userRefreshPending; // set by F5, cleared when that scan's result is applied
 
     private readonly IApplication _app;
     private AppConfig _config;
@@ -139,7 +140,6 @@ public sealed class MainWindow : Window
         }
 
         _updateCheckRunning = true;
-        if (manual) SetMessage($"{_sym.Refresh} Checking for updates…", MessageKind.Info);
         string? staged = await Updater.CheckAndStageAsync();
 
         _app.Invoke(() =>
@@ -360,6 +360,8 @@ public sealed class MainWindow : Window
     private void ApplyResult(ScanResult r)
     {
         _lastRefresh = DateTime.UtcNow;
+        bool userRefresh = _userRefreshPending;
+        _userRefreshPending = false;
         if (r.Error is not null)
         {
             SetMessage($"{_sym.Warn} {r.Error} Open settings ({_sym.Gear} F2) to set paths.", MessageKind.Error);
@@ -414,6 +416,7 @@ public sealed class MainWindow : Window
 
         if (warnings.Count > 0) SetMessage($"{_sym.Warn} {string.Join("; ", warnings)}", MessageKind.Warning);
         else if (notes.Count > 0) SetMessage(string.Join("   ", notes), MessageKind.Info);
+        else if (userRefresh) SetMessage($"{_sym.Check} Scan finished: {_allGames.Count} games", MessageKind.Success);
         else if (_message.Text.StartsWith(_sym.Warn)) SetMessage("", MessageKind.Info);
     }
 
@@ -618,6 +621,7 @@ public sealed class MainWindow : Window
     private void RefreshNow()
     {
         SetMessage($"{_sym.Refresh} Refreshing…", MessageKind.Info);
+        _userRefreshPending = true; // ApplyResult replaces "Refreshing…" with the outcome
         _ = RefreshAsync(splash: false);
         _ = CheckForUpdatesAsync(manual: true);
     }
