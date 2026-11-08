@@ -356,7 +356,9 @@ function Publish-Release([version]$version, [string]$notes) {
     if (-not $Yes -and (Read-Host 'Publish now? (y/N)') -ne 'y') { throw 'Aborted. Nothing was published.' }
 
     # Re-check: a release may have been published while the build ran.
-    Assert-VersionFree $version (Get-GitHubState) $true
+    $state = Get-GitHubState
+    Assert-VersionFree $version $state $true
+    $hasEarlierRelease = [bool](Get-HighestPublished $state)
 
     # Punk.csproj must carry this version in the release commit.
     if ((Get-CsprojVersion) -ne $version) { Set-CsprojVersion $version }
@@ -372,7 +374,10 @@ function Publish-Release([version]$version, [string]$notes) {
     if ($LASTEXITCODE -ne 0) { throw "git push ($tag) failed." }
 
     # Draft first, so releases/latest (used by the in-app updater) never points at a half-uploaded release.
-    $notesArgs = if ($notes) { @('--notes', $notes) } else { @('--generate-notes') }
+    # Generated notes diff against the previous release; the first release has none, so use fixed text there.
+    $notesArgs = if ($notes) { @('--notes', $notes) }
+                 elseif ($hasEarlierRelease) { @('--generate-notes') }
+                 else { @('--notes', "Punk $tag") }
     gh release create $tag @assets --repo $repo --draft --title "Punk $tag" @notesArgs
     if ($LASTEXITCODE -ne 0) { throw "gh release create failed. Delete the draft release and tag $tag on GitHub before retrying." }
     gh release edit $tag --repo $repo --draft=false
