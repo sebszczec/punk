@@ -313,25 +313,12 @@ function Invoke-Build([version]$target) {
     $rids = 'win-x64', 'linux-x64'
 
     Write-Host "Building Punk $v"
-    # One restore for both platforms; the publishes then run side by side with --no-restore.
-    dotnet restore $csprojFull "-p:RuntimeIdentifiers=$($rids -join ';')" --nologo
-    if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed (exit $LASTEXITCODE)" }
-
-    $publish = $rids | ForEach-Object -Parallel {
-        $proj = $using:csprojFull
-        $ver = $using:v
-        $dist = $using:distDir
-        $log = dotnet publish $proj -c Release -r $_ --self-contained --no-restore `
-            -p:PublishSingleFile=true "-p:Version=$ver" -o "$dist\$_" 2>&1
-        [pscustomobject]@{ Rid = $_; Ok = ($LASTEXITCODE -eq 0); Log = ($log | Out-String) }
-    } -ThrottleLimit $rids.Count
-
-    # Shared obj/ intermediates can collide when both run at once: retry any failure on its own.
-    foreach ($r in @($publish | Where-Object { -not $_.Ok })) {
-        Write-Host "Parallel publish of $($r.Rid) failed, retrying it alone..."
-        dotnet publish $csprojFull -c Release -r $r.Rid --self-contained --no-restore `
-            -p:PublishSingleFile=true "-p:Version=$v" -o "$distDir\$($r.Rid)"
-        if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($($r.Rid)) failed (exit $LASTEXITCODE)`n$($r.Log)" }
+    # The two publishes run one after the other: both use the shared obj/ folder, and running them at once
+    # made the builds collide (duplicate generated attributes), so parallel publishing is not reliable here.
+    foreach ($rid in $rids) {
+        dotnet publish $csprojFull -c Release -r $rid --self-contained `
+            -p:PublishSingleFile=true "-p:Version=$v" -o "$distDir\$rid"
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($rid) failed (exit $LASTEXITCODE)" }
     }
 
     # Package: update zips, installer, checksums. The two zips and the installer are independent, so they run together.
