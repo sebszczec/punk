@@ -5,6 +5,7 @@ using Punk.Gog;
 using Punk.Config;
 using Punk.Launch;
 using Punk.Steam;
+using Punk.Update;
 using Terminal.Gui.App;
 using Terminal.Gui.Drawing;
 using Terminal.Gui.Input;
@@ -19,6 +20,7 @@ public enum MessageKind { Info, Success, Warning, Error }
 public sealed class MainWindow : Window
 {
     private const int TickMs = 50;
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
 
     private readonly IApplication _app;
     private AppConfig _config;
@@ -74,6 +76,7 @@ public sealed class MainWindow : Window
     private readonly Label _detailsTitle = new();
     private readonly Label _detailsBody = new();
     private readonly Label _message = new();
+    private readonly Label _updateNotice = new();
     private readonly StatusBar _hints = new();
     private readonly Label[] _banner = [new(), new()];
     private readonly Label _subtitle = new();
@@ -114,7 +117,31 @@ public sealed class MainWindow : Window
         _app.AddTimeout(TimeSpan.FromMilliseconds(TickMs), Tick);
 
         if (configWarning is not null) SetMessage($"{_sym.Warn} {configWarning}", MessageKind.Warning);
+        if (Updater.PendingVersion() is { } pending) ShowUpdateNotice(pending);
+        _ = CheckForUpdatesAsync();
         _ = RefreshAsync(splash: true);
+    }
+
+    /// <summary>Checks GitHub at most once per <see cref="UpdateCheckInterval"/>; a found update is downloaded and installed on the next start.</summary>
+    private async Task CheckForUpdatesAsync()
+    {
+        if (!Updater.IsEnabled(_config)) return;
+        if (_config.LastUpdateCheck is { } last && DateTimeOffset.UtcNow - last < UpdateCheckInterval) return;
+
+        string? staged = await Updater.CheckAndStageAsync();
+
+        _app.Invoke(() =>
+        {
+            _config.LastUpdateCheck = DateTimeOffset.UtcNow;
+            try { ConfigStore.Save(_config); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* checked again later */ }
+            if (staged is not null) ShowUpdateNotice(staged);
+        });
+    }
+
+    private void ShowUpdateNotice(string version)
+    {
+        _updateNotice.Text = $"{_sym.Check} Update v{version} downloaded. It will be installed the next time Punk starts.";
     }
 
     // ---------------------------------------------------------------- layout
@@ -211,6 +238,10 @@ public sealed class MainWindow : Window
         _message.Y = Pos.AnchorEnd(2);
         _message.Width = Dim.Fill(1);
 
+        _updateNotice.X = 1;
+        _updateNotice.Y = 2;
+        _updateNotice.Width = Dim.Fill(1);
+
         _hints.Add(
             Hint(Key.Enter, $"{_sym.Play} Launch", LaunchSelected),
             Hint(Key.F5, $"{_sym.Refresh} Refresh", RefreshNow),
@@ -220,7 +251,7 @@ public sealed class MainWindow : Window
             Hint(Key.F2, $"{_sym.Gear} Settings", OpenSettings),
             Hint(Key.Q.WithCtrl, "Quit", () => _app.RequestStop()));
 
-        _main.Add(_title, _sessionInfo, _refreshInfo, _searchIcon, _search, _temps, _listFrame, _detailsFrame, _message, _hints);
+        _main.Add(_title, _sessionInfo, _refreshInfo, _searchIcon, _search, _temps, _listFrame, _detailsFrame, _message, _updateNotice, _hints);
     }
 
     private void ApplyTheme()
@@ -248,6 +279,7 @@ public sealed class MainWindow : Window
         _banner[0].SetScheme(Theme.Colored(accent));
         _banner[1].SetScheme(Theme.Colored(Theme.Accent2));
         _message.SetScheme(Theme.Colored(MessageColor(_messageKind)));
+        _updateNotice.SetScheme(Theme.Colored(Theme.Success));
         SetNeedsDraw();
     }
 

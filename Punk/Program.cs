@@ -4,6 +4,7 @@ using Terminal.Gui.App;
 using Terminal.Gui.Input;
 using Terminal.Gui.Testing;
 using Punk.Launch;
+using Punk.Update;
 
 if (Environment.GetEnvironmentVariable("PUNK_TEMPS_DIAG") is { } diagFile)
 {
@@ -12,6 +13,11 @@ if (Environment.GetEnvironmentVariable("PUNK_TEMPS_DIAG") is { } diagFile)
 }
 
 AppConfig config = ConfigStore.Load(out string? warning);
+
+// Installs an update downloaded by an earlier run. On success a new process is started and this one exits.
+UpdateApplier.Outcome update = UpdateApplier.TryApply(config);
+if (update.Relaunched) return;
+warning ??= update.Warning;
 
 // PUNK_SELFTEST=<file>: run on the ANSI driver, inject keys, dump the screen and exit (for automated checks).
 // PUNK_TEST_LIB=<dir>: with the self-test, a fake Steam library appears in it mid-run to exercise auto refresh.

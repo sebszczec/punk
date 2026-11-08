@@ -11,6 +11,17 @@ Requires .NET SDK 10 (a 6.0 SDK is also installed; `dotnet --version` should say
 ## Steps
 1. `dotnet build Punk/Punk.csproj` - must be clean (0 errors).
 2. `./publish.ps1` from the repo root. It publishes self-contained single-file builds to `dist/win-x64/Punk.exe` and `dist/linux-x64/Punk` (~80 MB each, plus a small `libonigwrap` next to each - ship both files). Native AOT cannot cross-compile OS to OS, so it is not used.
+   It also writes `dist/release/`: `Setup-Punk-<v>.exe` (Inno Setup per-user installer, `installer/punk.iss`), `punk-win-x64.zip`, `punk-linux-x64.zip` and `SHA256SUMS`.
+
+### Versions and releases
+- `./publish.ps1` with no arguments - interactive menu: `[1]` create a new version (proposes patch/minor/major checked against GitHub, or a typed number, then release now or later), `[2]` release a version already built in `dist/release` (refused if the commit changed since the build; `dist/release/build.json` records the build).
+- `-NonInteractive` - no menu, builds the version in `Punk.csproj`.
+- `./publish.ps1 -CheckVersion` - shows the csproj version, the latest GitHub release, the highest `v*` tag on origin and the suggested next versions. Exit 1 if the csproj is not newer than GitHub.
+- `./publish.ps1 -Version 1.2.0` or `-Bump patch|minor|major` - sets `<Version>` in `Punk/Punk.csproj` and builds. Nothing is published.
+- `./publish.ps1 -Bump patch -Release` - builds, then (after a confirmation) commits the csproj as `Release vX.Y.Z`, tags `vX.Y.Z`, pushes `main` and the tag, and creates the GitHub release with the installer and update files. The release is created as a draft and published only after all assets are uploaded.
+- Version validation runs before any build: a version that is not newer than GitHub's, or whose tag exists, is refused. A big jump asks for confirmation. Strict with `-Release`: GitHub must be reachable and `gh` logged in.
+- `-Release` needs: branch `main`, no uncommitted changes apart from `Punk.csproj`, `gh auth status` ok.
+- A run that fails after the tag is pushed leaves a tag and maybe a draft release: delete both on GitHub and retry, or use the next version.
 3. Windows smoke test: `.\dist\win-x64\Punk.exe` in PowerShell, or the headless self-test (see `punk-tui-selftest`).
 4. Linux smoke test in WSL (Ubuntu is a close stand-in for Zorin): `wsl -d Ubuntu-22.04 -e bash /mnt/c/Users/sebsz/source/punk/scripts/linux_test.sh`. It must end with `exited cleanly`.
 

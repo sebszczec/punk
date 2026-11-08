@@ -33,6 +33,7 @@ public static class SettingsDialog
         CheckBox gog = new() { X = 1, Y = 14, Text = "Include GOG Galaxy games (Windows)", Value = edit.GogEnabled ? CheckState.Checked : CheckState.UnChecked };
         CheckBox epic = new() { X = 1, Y = 15, Text = "Include Epic Games Store games (Windows)", Value = edit.EpicEnabled ? CheckState.Checked : CheckState.UnChecked };
         Button sort = new() { X = fx, Y = 16, Text = $"{edit.SortBy}", NoDecorations = false };
+        CheckBox updates = new() { X = 1, Y = 17, Text = "Check for updates (installed on next start)", Value = edit.CheckForUpdates ? CheckState.Checked : CheckState.UnChecked };
         Label hint = new() { X = 1, Y = 18, Width = Dim.Fill(1), Text = $"Config: {ConfigStore.Path}" };
         Label err = new() { X = 1, Y = 19, Width = Dim.Fill(1), Text = "" };
 
@@ -59,6 +60,7 @@ public static class SettingsDialog
             L("Accent color (#RRGGBB)", 9), accent, swatch,
             hideTools, ascii, bnet, gog, epic,
             L("Sort by (Enter cycles)", 16), sort,
+            updates,
             hint, err);
 
         Button save = new() { Text = "Save", IsDefault = true };
@@ -94,6 +96,7 @@ public static class SettingsDialog
             edit.AccentColor = accent.Text.Trim();
             edit.HideSteamTools = hideTools.Value == CheckState.Checked;
             edit.UseAsciiSymbols = ascii.Value == CheckState.Checked;
+            edit.CheckForUpdates = updates.Value == CheckState.Checked;
             saved = true;
         };
 
@@ -110,6 +113,7 @@ public static class SettingsDialog
             accent.Text = d.AccentColor;
             hideTools.Value = CheckState.Checked;
             ascii.Value = CheckState.UnChecked;
+            updates.Value = d.CheckForUpdates ? CheckState.Checked : CheckState.UnChecked;
             edit.SortBy = d.SortBy;
             sort.Text = $"{d.SortBy}";
             e.Handled = true;

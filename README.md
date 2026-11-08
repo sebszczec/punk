@@ -64,6 +64,30 @@ dotnet publish Punk/Punk.csproj -c Release -r linux-x64 --self-contained -p:Publ
 
 (use `-r win-x64` for Windows).
 
+### Install (Windows)
+
+Download `Setup-Punk-<version>.exe` from the [Releases page](https://github.com/sebszczec/punk/releases/latest) and run it. It installs per user (no administrator rights) into `%LOCALAPPDATA%\Programs\Punk`.
+
+### Updates
+
+Punk checks GitHub Releases for a newer version at startup (at most every 6 hours). When one is found it is downloaded and verified in the background, and a notice appears under the search box. The update is installed the next time Punk starts, and Punk then relaunches itself on the new version.
+
+- Turn checks off in Settings (F2) with "Check for updates", or set `PUNK_NO_UPDATE=1`.
+- Updates apply only to published builds, not to `dotnet run`.
+
+### Releasing (maintainers)
+
+```powershell
+./publish.ps1                        # interactive menu
+```
+
+The menu asks what to do:
+
+1. **Create a new version.** It checks GitHub and suggests the next patch, minor or major number, or you can type one. Then you choose to release now or build only and release later. Building writes the installer, zips and `SHA256SUMS` to `dist/release/`.
+2. **Release a version that was already built.** It refuses if the code changed since the build.
+
+Flags still work for scripts: `-CheckVersion`, `-Version 1.2.0`, `-Bump patch -Release`, and `-NonInteractive` (builds the version in `Punk.csproj` without the menu). Details are in `publish.ps1`.
+
 ## Keyboard shortcuts
 
 The bottom bar is clickable too: double-click an item (for example `F3 Sort`) to run it. A single click does nothing.

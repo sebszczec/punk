@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Release version. publish.ps1 -Version / -Bump writes it; publish.ps1 -Release publishes it. -->
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

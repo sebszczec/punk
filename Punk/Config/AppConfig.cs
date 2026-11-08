@@ -46,6 +46,12 @@ public sealed class AppConfig
 
     public SortMode SortBy { get; set; } = SortMode.LastPlayed;
 
+    /// <summary>Check GitHub for a newer Punk at startup. A downloaded update is installed on the next start.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>When the last update check ran (UTC). Throttles requests to GitHub.</summary>
+    public DateTimeOffset? LastUpdateCheck { get; set; }
+
     /// <summary>Extra command-line arguments per game, keyed by <see cref="Punk.Steam.Game.Key"/> (e.g. "--launcher-skip").</summary>
     public Dictionary<string, string> LaunchOptions { get; set; } = [];
 
@@ -86,6 +92,8 @@ public sealed class AppConfig
         Preset = Preset,
         UseAsciiSymbols = UseAsciiSymbols,
         SortBy = SortBy,
+        CheckForUpdates = CheckForUpdates,
+        LastUpdateCheck = LastUpdateCheck,
         LaunchOptions = new(LaunchOptions),
     };
 }
