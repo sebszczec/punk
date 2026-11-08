@@ -179,7 +179,7 @@ public sealed class MainWindow : Window
             _splash.Add(_banner[i]);
         }
 
-        _subtitle.Text = "Game launcher";
+        _subtitle.Text = $"Game launcher  v{Updater.Current}";
         _subtitle.X = Pos.Center();
         _subtitle.Y = Pos.Center() - 3;
 

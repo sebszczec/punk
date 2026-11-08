@@ -1,4 +1,5 @@
 ﻿using Punk.Config;
+using Punk.Update;
 using Terminal.Gui.App;
 using Terminal.Gui.Drawing;
 using Terminal.Gui.ViewBase;
@@ -15,7 +16,7 @@ public static class SettingsDialog
         bool saved = false;
         string? error = null;
 
-        Dialog dialog = new() { Title = "Settings", Width = 70, Height = 25 };
+        Dialog dialog = new() { Title = $"Settings  ·  Punk v{Updater.Current}", Width = 70, Height = 25 };
         dialog.SetScheme(scheme);
 
         Label L(string text, int y) => new() { Text = text, X = 1, Y = y };
