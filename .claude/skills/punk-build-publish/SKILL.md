@@ -6,14 +6,14 @@ description: Build, package, release and smoke-test the Punk TUI (C#/.NET 10 + T
 # Build, package and release Punk
 
 Repo: `C:\Users\sebsz\source\punk`. Requires .NET SDK 10 (`dotnet --version` should say 10.x).
-Layout: `Punk/` (app, `Punk.csproj` holds `<Version>` and `<ApplicationIcon>`), `publish.ps1` (build + release), `installer/punk.iss` (Inno Setup), `installer/icon/` (icon source + generator), `dist/` (git-ignored build output).
+Layout: `Punk/` (app, `Punk.csproj` holds `<Version>` and `<ApplicationIcon>`), `build.ps1` (build + release), `installer/punk.iss` (Inno Setup), `installer/icon/` (icon source + generator), `dist/` (git-ignored build output).
 
 ## Build and release: what to run
-- `./publish.ps1` (no arguments) - interactive menu. `[1]` create a new version: proposes patch/minor/major checked against GitHub (or a typed number), then "release now or later". `[2]` release a version already built in `dist/release` (refused if the commit changed since the build; `dist/release/build.json` records the commit).
-- `./publish.ps1 -NonInteractive` - builds the version in `Punk.csproj`, publishes nothing. Refuses if that tag already exists on origin, so it only works for an unreleased version.
-- `./publish.ps1 -CheckVersion` - csproj version, latest release, highest `v*` tag, suggested next versions. Exit 1 if the csproj is not newer than GitHub.
-- `./publish.ps1 -Version x.y.z` / `-Bump patch|minor|major` - writes `<Version>` into the csproj and builds, nothing published.
-- `./publish.ps1 -Bump patch -Release` - builds, asks to confirm, commits the csproj as `Release vX.Y.Z`, tags, pushes `main` and the tag, creates the GitHub release (draft first, then published once all assets are up).
+- `./build.ps1` (no arguments) - interactive menu, Enter = `[1]` build locally: builds the version in `Punk.csproj`, publishes nothing. `[2]` create a new version: proposes patch/minor/major checked against GitHub (or a typed number), then "release now or later". `[3]` release a version already built in `dist/release` (refused if the commit changed since the build; `dist/release/build.json` records the commit).
+- `./build.ps1 -NonInteractive` - builds the version in `Punk.csproj`, publishes nothing. Refuses if that tag already exists on origin, so it only works for an unreleased version.
+- `./build.ps1 -CheckVersion` - csproj version, latest release, highest `v*` tag, suggested next versions. Exit 1 if the csproj is not newer than GitHub.
+- `./build.ps1 -Version x.y.z` / `-Bump patch|minor|major` - writes `<Version>` into the csproj and builds, nothing published.
+- `./build.ps1 -Bump patch -Release` - builds, asks to confirm, commits the csproj as `Release vX.Y.Z`, tags, pushes `main` and the tag, creates the GitHub release (draft first, then published once all assets are up).
 - Release preconditions: branch `main`, no uncommitted changes except `Punk.csproj`, `gh auth status` ok, GitHub reachable.
 - Output in `dist/release/`: `Setup-Punk-<v>.exe`, `punk-win-x64.zip`, `punk-linux-x64.zip`, `SHA256SUMS`, `build.json`. The release uploads all four (the in-app updater needs `SHA256SUMS`).
 
@@ -25,7 +25,7 @@ Layout: `Punk/` (app, `Punk.csproj` holds `<Version>` and `<ApplicationIcon>`), 
 - **A failed release leaves things behind**: the tag is pushed before `gh release create`, so a failure leaves a pushed tag with no release. Recovery used for v1.0.0/v1.0.1: `gh release create vX --repo sebszczec/punk --draft --title "Punk vX" --notes "..." <assets>` from `dist/release`, check the draft with `gh release view --json isDraft,assets`, then `gh release edit vX --draft=false`. A draft shows an `untagged-...` URL until it is published; that is normal.
 - **A release without `SHA256SUMS` is broken**: v1.0.2 was published without it, so existing installs cannot verify or offer that update. Fixed in the script (`Publish-Release` adds `SHA256SUMS`). Check every release: `gh release view vX --json assets`.
 - **Writes to public releases can be blocked by the permission system** (for example uploading an asset to a published release). Don't try to route around it: explain the exact `gh` command to the user and let them run it.
-- **Interactive prompts can't be tested here**: the Bash/PowerShell tools run non-interactively, so `Read-Host` fails and piping answers into `publish.ps1` does not work. Test the menu in the user's own terminal. Non-prompt paths (`-CheckVersion`, `-NonInteractive`) can be run here.
+- **Interactive prompts can't be tested here**: the Bash/PowerShell tools run non-interactively, so `Read-Host` fails and piping answers into `build.ps1` does not work. Test the menu in the user's own terminal. Non-prompt paths (`-CheckVersion`, `-NonInteractive`) can be run here.
 - **Git Bash `/c/...` paths break Node and Windows programs**: pass `C:/...` paths to Node and PowerShell paths to Windows tools.
 - **Icon**: `installer/punk.ico` is generated from `installer/icon/punk-icon.svg` by `installer/icon/build-ico.cjs` and committed. The renderer `@resvg/resvg-js` is not committed: `npm install --prefix <scratch> @resvg/resvg-js`, then `NODE_PATH=<scratch>/node_modules node installer/icon/build-ico.cjs`. The exe icon comes from `ApplicationIcon` in the csproj; the installer's desktop shortcut task is `desktopicon` (ticked by default).
 - **Installer tests touch the desktop**: a silent install creates `Punk.lnk` on the real desktop. Check for an existing `Punk.lnk` first, install to a unique temp `/DIR`, check the shortcut, then uninstall with `unins000.exe /VERYSILENT` and confirm the shortcut is gone. `/MERGETASKS=!desktopicon` must create none.

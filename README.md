@@ -47,10 +47,10 @@ dotnet run --project Punk
 
 ### Build standalone binaries
 
-On Windows, `publish.ps1` installs anything missing (.NET 10 SDK, PawnIO driver) via `winget` and publishes single-file builds for both platforms:
+On Windows, `build.ps1` installs anything missing (.NET 10 SDK, PawnIO driver) via `winget` and publishes single-file builds for both platforms:
 
 ```powershell
-./publish.ps1
+./build.ps1
 ```
 
 Output:
@@ -82,15 +82,16 @@ Punk checks GitHub Releases for a newer version at startup (at most every 6 hour
 ### Releasing (maintainers)
 
 ```powershell
-./publish.ps1                        # interactive menu
+./build.ps1                        # interactive menu
 ```
 
 The menu asks what to do:
 
-1. **Create a new version.** It checks GitHub and suggests the next patch, minor or major number, or you can type one. Then you choose to release now or build only and release later. Building writes the installer, zips and `SHA256SUMS` to `dist/release/`.
-2. **Release a version that was already built.** It refuses if the code changed since the build.
+1. **Build locally** (the default, just press Enter). Builds the version in `Punk.csproj` and publishes nothing. Building writes the installer, zips and `SHA256SUMS` to `dist/release/`.
+2. **Create a new version.** It checks GitHub and suggests the next patch, minor or major number, or you can type one. Then you choose to release now or build only and release later.
+3. **Release a version that was already built.** It refuses if the code changed since the build.
 
-Flags still work for scripts: `-CheckVersion`, `-Version 1.2.0`, `-Bump patch -Release`, and `-NonInteractive` (builds the version in `Punk.csproj` without the menu). Details are in `publish.ps1`.
+Flags still work for scripts: `-CheckVersion`, `-Version 1.2.0`, `-Bump patch -Release`, and `-NonInteractive` (builds the version in `Punk.csproj` without the menu). Details are in `build.ps1`.
 
 ## Keyboard shortcuts
 
@@ -124,7 +125,7 @@ Steam, Battle.net and GOG are detected automatically. Set paths only if a launch
 
 - **Linux**: read from `/sys/class/hwmon` (k10temp, coretemp, zenpower, amdgpu, nouveau, ...), no extra setup needed.
 - **NVIDIA GPUs** (both OSes): read through `nvidia-smi` if it is installed.
-- **Windows CPU**: read with [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), which needs the [PawnIO](https://pawnio.eu/) driver and an **administrator terminal**. Without them Punk falls back to the Windows thermal zone counter, which is less accurate or missing on some machines. Install PawnIO with `winget install namazso.PawnIO` (`publish.ps1` does this for you).
+- **Windows CPU**: read with [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), which needs the [PawnIO](https://pawnio.eu/) driver and an **administrator terminal**. Without them Punk falls back to the Windows thermal zone counter, which is less accurate or missing on some machines. Install PawnIO with `winget install namazso.PawnIO` (`build.ps1` does this for you).
 
 Temperatures are optional: if no sensor is available, Punk just leaves that part of the header empty.
 
@@ -149,7 +150,7 @@ Punk/
   Ui/          Terminal.Gui main window, settings dialog, themes
 tools/SessionTest/   Console test for the session tracker using a fake game process
 scripts/             Linux test script (WSL + tmux)
-publish.ps1          Dependency check + Windows/Linux publish
+build.ps1          Dependency check + Windows/Linux publish
 ```
 
 ## Contributing

@@ -61,6 +61,7 @@ public sealed class MainWindow : Window
     private readonly ProgressBar _bar = new();
     private readonly Label _splashStatus = new();
     private readonly Label _splashSpinner = new();
+    private readonly Label _splashHint = new();
     private readonly Label _title = new();
     private readonly Label _refreshInfo = new();
     private readonly Label _sessionInfo = new();
@@ -197,7 +198,15 @@ public sealed class MainWindow : Window
         _splashStatus.Width = 40;
         _splashStatus.Text = "Starting…";
 
-        _splash.Add(_subtitle, _bar, _splashSpinner, _splashStatus);
+        // CPU sensors need an administrator terminal on Windows; say so only when that applies.
+        _splashHint.X = Pos.Center() - 18;
+        _splashHint.Y = Pos.Center() + 4;
+        _splashHint.Width = 60;
+        _splashHint.Text = Elevation.IsElevated() || !OperatingSystem.IsWindows()
+            ? ""
+            : "Run as administrator to see CPU temperature";
+
+        _splash.Add(_subtitle, _bar, _splashSpinner, _splashStatus, _splashHint);
     }
 
     private void BuildMain()
@@ -291,6 +300,7 @@ public sealed class MainWindow : Window
         _bar.SetScheme(new Scheme { Normal = new Terminal.Gui.Drawing.Attribute(accent, Theme.Panel) });
         _splashSpinner.SetScheme(Theme.Colored(Theme.Accent3));
         _splashStatus.SetScheme(Theme.Colored(Theme.Muted));
+        _splashHint.SetScheme(Theme.Colored(Theme.Muted));
         _searchIcon.SetScheme(Theme.Colored(Theme.Accent2));
         _detailsTitle.SetScheme(Theme.Colored(Theme.Accent3));
         _detailsBody.SetScheme(Theme.Colored(Theme.Text));

@@ -1,4 +1,4 @@
-; Inno Setup script for Punk. publish.ps1 compiles it with /DVersion, /DSourceDir and /DOutputDir.
+; Inno Setup script for Punk. build.ps1 compiles it with /DVersion, /DSourceDir and /DOutputDir.
 ; Per-user install (no admin), so the in-app updater can replace the files in place.
 
 #ifndef Version

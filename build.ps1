@@ -2,15 +2,15 @@
 .SYNOPSIS
 Builds Punk for Windows and Linux, creates the Windows installer and the update files, and optionally publishes a GitHub release.
 
-Run without arguments for an interactive menu: create a new version (with a proposed number checked against GitHub),
-or release a version that was built earlier.
+Run without arguments for an interactive menu: build locally (default), create a new version (with a proposed number
+checked against GitHub), or release a version that was built earlier.
 
 .EXAMPLE
-./publish.ps1                         # interactive menu
-./publish.ps1 -CheckVersion           # show the version on GitHub and the suggested next version
-./publish.ps1 -Version 1.2.0          # build 1.2.0 into dist/ (nothing is published)
-./publish.ps1 -Bump patch -Release    # bump the patch number, build, and publish to GitHub
-./publish.ps1 -NonInteractive         # no menu: build the version in Punk.csproj
+./build.ps1                           # interactive menu
+./build.ps1 -CheckVersion             # show the version on GitHub and the suggested next version
+./build.ps1 -Version 1.2.0            # build 1.2.0 into dist/ (nothing is published)
+./build.ps1 -Bump patch -Release      # bump the patch number, build, and publish to GitHub
+./build.ps1 -NonInteractive           # no menu: build the version in Punk.csproj
 #>
 [CmdletBinding()]
 param(
@@ -31,6 +31,14 @@ $distDir = "$PSScriptRoot\dist"
 $releaseDir = "$distDir\release"
 $buildMarker = "$releaseDir\build.json"
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+# --- Progress ---------------------------------------------------------------
+
+# Shows "[step/total] status" in a progress bar. Pass -Done to clear it.
+function Show-Step([string]$Activity, [int]$Step, [int]$Of, [string]$Status, [switch]$Done) {
+    if ($Done) { Write-Progress -Activity $Activity -Completed; return }
+    Write-Progress -Activity $Activity -Status "[$Step/$Of] $Status" -PercentComplete (100 * ($Step - 1) / $Of)
+}
 
 # --- Version helpers --------------------------------------------------------
 
@@ -63,21 +71,27 @@ function Get-NextVersions([version]$base) {
 function Get-GitHubState {
     $state = [ordered]@{ Known = $false; Latest = $null; Tags = @(); Reason = '' }
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { $state.Reason = 'gh CLI is not installed'; return $state }
-    gh auth status *> $null
-    if ($LASTEXITCODE -ne 0) { $state.Reason = 'gh is not logged in (run: gh auth login)'; return $state }
+    Show-Step -Activity 'Checking GitHub' -Step 1 -Of 2 -Status 'login and tags'
+    try {
+        gh auth status *> $null
+        if ($LASTEXITCODE -ne 0) { $state.Reason = 'gh is not logged in (run: gh auth login)'; return $state }
 
-    $remoteTags = git ls-remote --tags origin 'v*' 2>$null
-    if ($LASTEXITCODE -ne 0) { $state.Reason = 'cannot reach origin'; return $state }
-    $state.Tags = @($remoteTags | ForEach-Object { if ($_ -match 'refs/tags/v(\d+\.\d+\.\d+)$') { Get-SemVer $Matches[1] } } | Where-Object { $_ })
+        $remoteTags = git ls-remote --tags origin 'v*' 2>$null
+        if ($LASTEXITCODE -ne 0) { $state.Reason = 'cannot reach origin'; return $state }
+        $state.Tags = @($remoteTags | ForEach-Object { if ($_ -match 'refs/tags/v(\d+\.\d+\.\d+)$') { Get-SemVer $Matches[1] } } | Where-Object { $_ })
 
-    # "release not found" is normal before the first release; keep gh's stderr from aborting the script.
-    $ErrorActionPreference = 'Continue'
-    $latestTag = gh release view --repo $repo --json tagName --jq .tagName 2>$null
-    $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -eq 0 -and $latestTag) { $state.Latest = Get-SemVer $latestTag.TrimStart('v') }
+        Show-Step -Activity 'Checking GitHub' -Step 2 -Of 2 -Status 'latest release'
+        # "release not found" is normal before the first release; keep gh's stderr from aborting the script.
+        $ErrorActionPreference = 'Continue'
+        $latestTag = gh release view --repo $repo --json tagName --jq .tagName 2>$null
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -eq 0 -and $latestTag) { $state.Latest = Get-SemVer $latestTag.TrimStart('v') }
 
-    $state.Known = $true
-    return $state
+        $state.Known = $true
+        return $state
+    } finally {
+        Show-Step -Activity 'Checking GitHub' -Done
+    }
 }
 
 function Get-HighestPublished($state) {
@@ -160,7 +174,7 @@ function Show-Status($state, [version]$current) {
     }
     Write-Host "  branch         : $(git rev-parse --abbrev-ref HEAD)"
     $marker = Read-BuildMarker
-    if ($marker) { Write-Host "  built          : v$($marker.version) (not released yet, see option 2)" }
+    if ($marker) { Write-Host "  built          : v$($marker.version) (not released yet, see option 3)" }
     Write-Host ""
 }
 
@@ -220,14 +234,14 @@ function Release-BuiltMenu($state) {
     $marker = Read-BuildMarker
     $assetsOk = $marker -and (Get-ReleaseAssets $marker.version | ForEach-Object { Test-Path $_ }) -notcontains $false
     if (-not $assetsOk -or -not (Test-Path "$releaseDir\SHA256SUMS")) {
-        Write-Host 'Nothing is built yet. Choose 1 to build a version.' -ForegroundColor Yellow
+        Write-Host 'Nothing is built yet. Choose 1 to build locally or 2 to create a new version.' -ForegroundColor Yellow
         return @{ Mode = 'quit' }
     }
 
     $head = (git rev-parse HEAD).Trim()
     if ($head -ne $marker.commit) {
         Write-Host "The code changed after v$($marker.version) was built (built at $($marker.commit.Substring(0, 7)), now $($head.Substring(0, 7)))." -ForegroundColor Yellow
-        Write-Host 'Choose 1 to build it again.' -ForegroundColor Yellow
+        Write-Host 'Choose 1 to build it again (or 2 for a new version).' -ForegroundColor Yellow
         return @{ Mode = 'quit' }
     }
 
@@ -247,12 +261,14 @@ function Invoke-Menu([version]$current) {
     $state = Get-GitHubState
     Show-Status $state $current
     Write-Host 'What do you want to do?'
-    Write-Host '  [1] Create a new version'
-    Write-Host '  [2] Release a version that was already built'
+    Write-Host "  [1] Build locally: v$(Format-SemVer $current) from Punk.csproj, nothing published (Enter)"
+    Write-Host '  [2] Create a new version'
+    Write-Host '  [3] Release a version that was already built'
     Write-Host '  [q] Quit'
-    switch (Read-Choice '> ' @('1', '2', 'q') '') {
-        '1' { return New-VersionMenu $state $current }
-        '2' { return Release-BuiltMenu $state }
+    switch (Read-Choice '> ' @('1', '2', '3', 'q') '1') {
+        '1' { return @{ Mode = 'build'; Version = $current; Release = $false; Local = $true } }
+        '2' { return New-VersionMenu $state $current }
+        '3' { return Release-BuiltMenu $state }
         default { return @{ Mode = 'quit' } }
     }
 }
@@ -305,63 +321,75 @@ function Install-BuildDependencies {
 
 function Invoke-Build([version]$target) {
     $v = Format-SemVer $target
-    $iscc = Install-BuildDependencies
+    $activity = "Building Punk $v"
+    $total = 5
+    try {
+        Show-Step -Activity $activity -Step 1 -Of $total -Status 'checking build tools'
+        $iscc = Install-BuildDependencies
 
-    if ((Get-CsprojVersion) -ne $target) { Set-CsprojVersion $target }
+        if ((Get-CsprojVersion) -ne $target) { Set-CsprojVersion $target }
 
-    $csprojFull = "$PSScriptRoot\Punk\Punk.csproj"
-    $rids = 'win-x64', 'linux-x64'
+        $csprojFull = "$PSScriptRoot\Punk\Punk.csproj"
+        $rids = 'win-x64', 'linux-x64'
 
-    Write-Host "Building Punk $v"
-    # The two publishes run one after the other: both use the shared obj/ folder, and running them at once
-    # made the builds collide (duplicate generated attributes), so parallel publishing is not reliable here.
-    foreach ($rid in $rids) {
-        dotnet publish $csprojFull -c Release -r $rid --self-contained `
-            -p:PublishSingleFile=true "-p:Version=$v" -o "$distDir\$rid"
-        if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($rid) failed (exit $LASTEXITCODE)" }
-    }
-
-    # Package: update zips, installer, checksums. The two zips and the installer are independent, so they run together.
-    Remove-Item $releaseDir -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Path $releaseDir | Out-Null
-    $isccArgs = @("/DVersion=$v", "/DSourceDir=$distDir\win-x64", "/DOutputDir=$releaseDir", "$PSScriptRoot\installer\punk.iss")
-
-    $packaged = 'zip:win-x64', 'zip:linux-x64', 'installer' | ForEach-Object -Parallel {
-        $ok = $true
-        $log = ''
-        try {
-            if ($_ -eq 'installer') {
-                $log = (& $using:iscc $using:isccArgs 2>&1 | Out-String)
-                $ok = $LASTEXITCODE -eq 0
-            } else {
-                Add-Type -AssemblyName System.IO.Compression.FileSystem
-                $rid = $_.Substring(4)
-                $dist = $using:distDir
-                $rel = $using:releaseDir
-                # Update zip: files at the zip root, which is what the in-app updater expects.
-                [IO.Compression.ZipFile]::CreateFromDirectory("$dist\$rid", "$rel\punk-$rid.zip",
-                    [IO.Compression.CompressionLevel]::Optimal, $false)
-            }
-        } catch {
-            $ok = $false
-            $log = $_.Exception.Message
+        Write-Host "Building Punk $v"
+        # The two publishes run one after the other: both use the shared obj/ folder, and running them at once
+        # made the builds collide (duplicate generated attributes), so parallel publishing is not reliable here.
+        $n = 1
+        foreach ($rid in $rids) {
+            $n++
+            Show-Step -Activity $activity -Step $n -Of $total -Status "dotnet publish $rid"
+            dotnet publish $csprojFull -c Release -r $rid --self-contained `
+                -p:PublishSingleFile=true "-p:Version=$v" -o "$distDir\$rid"
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($rid) failed (exit $LASTEXITCODE)" }
         }
-        [pscustomobject]@{ Step = $_; Ok = $ok; Log = $log }
-    } -ThrottleLimit 3
 
-    $bad = @($packaged | Where-Object { -not $_.Ok })
-    if ($bad) { throw "Packaging failed: $(($bad | ForEach-Object Step) -join ', ')`n$(($bad | ForEach-Object Log) -join "`n")" }
+        # Package: update zips, installer, checksums. The two zips and the installer are independent, so they run together.
+        Show-Step -Activity $activity -Step 4 -Of $total -Status 'zips and installer'
+        Remove-Item $releaseDir -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $releaseDir | Out-Null
+        $isccArgs = @("/DVersion=$v", "/DSourceDir=$distDir\win-x64", "/DOutputDir=$releaseDir", "$PSScriptRoot\installer\punk.iss")
 
-    $assets = Get-ReleaseAssets $v
-    $sumLines = foreach ($a in $assets) { "$((Get-FileHash $a -Algorithm SHA256).Hash.ToLower())  $(Split-Path $a -Leaf)" }
-    [IO.File]::WriteAllText("$releaseDir\SHA256SUMS", (($sumLines -join "`n") + "`n"))
+        $packaged = 'zip:win-x64', 'zip:linux-x64', 'installer' | ForEach-Object -Parallel {
+            $ok = $true
+            $log = ''
+            try {
+                if ($_ -eq 'installer') {
+                    $log = (& $using:iscc $using:isccArgs 2>&1 | Out-String)
+                    $ok = $LASTEXITCODE -eq 0
+                } else {
+                    Add-Type -AssemblyName System.IO.Compression.FileSystem
+                    $rid = $_.Substring(4)
+                    $dist = $using:distDir
+                    $rel = $using:releaseDir
+                    # Update zip: files at the zip root, which is what the in-app updater expects.
+                    [IO.Compression.ZipFile]::CreateFromDirectory("$dist\$rid", "$rel\punk-$rid.zip",
+                        [IO.Compression.CompressionLevel]::Optimal, $false)
+                }
+            } catch {
+                $ok = $false
+                $log = $_.Exception.Message
+            }
+            [pscustomobject]@{ Step = $_; Ok = $ok; Log = $log }
+        } -ThrottleLimit 3
 
-    # Remember what was built, so option 2 can refuse a release when the code has changed since.
-    $marker = [ordered]@{ version = $v; commit = (git rev-parse HEAD).Trim(); builtAt = (Get-Date).ToString('o') }
-    [IO.File]::WriteAllText($buildMarker, ($marker | ConvertTo-Json))
+        $bad = @($packaged | Where-Object { -not $_.Ok })
+        if ($bad) { throw "Packaging failed: $(($bad | ForEach-Object Step) -join ', ')`n$(($bad | ForEach-Object Log) -join "`n")" }
 
-    Write-Host "Built into ${releaseDir}:"
-    Get-ChildItem $releaseDir | ForEach-Object { Write-Host "  $($_.Name)" }
+        Show-Step -Activity $activity -Step 5 -Of $total -Status 'checksums'
+        $assets = Get-ReleaseAssets $v
+        $sumLines = foreach ($a in $assets) { "$((Get-FileHash $a -Algorithm SHA256).Hash.ToLower())  $(Split-Path $a -Leaf)" }
+        [IO.File]::WriteAllText("$releaseDir\SHA256SUMS", (($sumLines -join "`n") + "`n"))
+
+        # Remember what was built, so option 3 can refuse a release when the code has changed since.
+        $marker = [ordered]@{ version = $v; commit = (git rev-parse HEAD).Trim(); builtAt = (Get-Date).ToString('o') }
+        [IO.File]::WriteAllText($buildMarker, ($marker | ConvertTo-Json))
+
+        Write-Host "Built into ${releaseDir}:"
+        Get-ChildItem $releaseDir | ForEach-Object { Write-Host "  $($_.Name)" }
+    } finally {
+        Show-Step -Activity $activity -Done
+    }
 }
 
 # --- Publish to GitHub ------------------------------------------------------
@@ -385,33 +413,48 @@ function Publish-Release([version]$version, [string]$notes) {
     $assets | ForEach-Object { Write-Host "  $(Split-Path $_ -Leaf)" }
     if (-not $Yes -and (Read-Host 'Publish now? (y/N)') -ne 'y') { throw 'Aborted. Nothing was published.' }
 
-    # Re-check: a release may have been published while the build ran.
-    $state = Get-GitHubState
-    Assert-VersionFree $version $state $true
-    $previous = Get-HighestPublished $state
+    $activity = "Publishing Punk $v"
+    $total = 6
+    try {
+        # Re-check: a release may have been published while the build ran.
+        Show-Step -Activity $activity -Step 1 -Of $total -Status 'checking GitHub'
+        $state = Get-GitHubState
+        Assert-VersionFree $version $state $true
+        $previous = Get-HighestPublished $state
 
-    # Punk.csproj must carry this version in the release commit.
-    if ((Get-CsprojVersion) -ne $version) { Set-CsprojVersion $version }
-    if (git status --porcelain -- Punk/Punk.csproj) {
-        git add Punk/Punk.csproj
-        git commit -m "Release $tag" -m "Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>" -m "Claude-Session: https://claude.ai/code/session_01B6UQ7e8aw4QoApAPsUPgsE"
-        if ($LASTEXITCODE -ne 0) { throw 'git commit failed.' }
+        # Punk.csproj must carry this version in the release commit.
+        if ((Get-CsprojVersion) -ne $version) { Set-CsprojVersion $version }
+        Show-Step -Activity $activity -Step 2 -Of $total -Status 'release commit and tag'
+        if (git status --porcelain -- Punk/Punk.csproj) {
+            git add Punk/Punk.csproj
+            git commit -m "Release $tag" -m "Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>" -m "Claude-Session: https://claude.ai/code/session_01B6UQ7e8aw4QoApAPsUPgsE"
+            if ($LASTEXITCODE -ne 0) { throw 'git commit failed.' }
+        }
+        git tag -a $tag -m "Punk $tag"
+
+        Show-Step -Activity $activity -Step 3 -Of $total -Status 'pushing main'
+        git push origin main
+        if ($LASTEXITCODE -ne 0) { throw 'git push (main) failed. Tag is only local; fix and re-run.' }
+
+        Show-Step -Activity $activity -Step 4 -Of $total -Status 'pushing tag'
+        git push origin $tag
+        if ($LASTEXITCODE -ne 0) { throw "git push ($tag) failed." }
+
+        # Draft first, so releases/latest (used by the in-app updater) never points at a half-uploaded release.
+        # Notes are written here, not with gh's --generate-notes, which failed on this machine.
+        Show-Step -Activity $activity -Step 5 -Of $total -Status 'uploading assets (draft)'
+        $notesText = if ($notes) { $notes } else { Get-ReleaseNotes $previous $tag }
+        gh release create $tag @assets --repo $repo --draft --title "Punk $tag" --notes $notesText
+        if ($LASTEXITCODE -ne 0) { throw "gh release create failed. Delete the draft release and tag $tag on GitHub before retrying." }
+
+        Show-Step -Activity $activity -Step 6 -Of $total -Status 'publishing draft'
+        gh release edit $tag --repo $repo --draft=false
+        if ($LASTEXITCODE -ne 0) { throw "Assets uploaded, but publishing the draft failed. Publish it on GitHub." }
+
+        Write-Host "Published: https://github.com/$repo/releases/tag/$tag"
+    } finally {
+        Show-Step -Activity $activity -Done
     }
-    git tag -a $tag -m "Punk $tag"
-    git push origin main
-    if ($LASTEXITCODE -ne 0) { throw 'git push (main) failed. Tag is only local; fix and re-run.' }
-    git push origin $tag
-    if ($LASTEXITCODE -ne 0) { throw "git push ($tag) failed." }
-
-    # Draft first, so releases/latest (used by the in-app updater) never points at a half-uploaded release.
-    # Notes are written here, not with gh's --generate-notes, which failed on this machine.
-    $notesText = if ($notes) { $notes } else { Get-ReleaseNotes $previous $tag }
-    gh release create $tag @assets --repo $repo --draft --title "Punk $tag" --notes $notesText
-    if ($LASTEXITCODE -ne 0) { throw "gh release create failed. Delete the draft release and tag $tag on GitHub before retrying." }
-    gh release edit $tag --repo $repo --draft=false
-    if ($LASTEXITCODE -ne 0) { throw "Assets uploaded, but publishing the draft failed. Publish it on GitHub." }
-
-    Write-Host "Published: https://github.com/$repo/releases/tag/$tag"
 }
 
 # --- Main -------------------------------------------------------------------
@@ -454,7 +497,9 @@ if ($interactive) {
     } else {
         $target = $current
     }
-    $plan = @{ Mode = 'build'; Version = $target; Release = [bool]$Release; Notes = $Notes }
+    # -NonInteractive without -Version/-Bump/-Release is a local build of the csproj version: no GitHub check needed.
+    $local = -not ($Version -or $Bump -or $Release)
+    $plan = @{ Mode = 'build'; Version = $target; Release = [bool]$Release; Notes = $Notes; Local = $local }
 }
 
 if ($plan.Mode -eq 'quit') { exit 0 }
@@ -464,8 +509,8 @@ $doRelease = $plan.Mode -eq 'release' -or [bool]$plan.Release
 if ($doRelease) { Test-ReleasePreconditions }
 
 if ($plan.Mode -eq 'build') {
-    # Validate before anything is built or written.
-    Assert-VersionFree $target (Get-GitHubState) $doRelease
+    # Validate before anything is built or written. A local build does not need the version to be new.
+    if (-not $plan.Local) { Assert-VersionFree $target (Get-GitHubState) $doRelease }
     Invoke-Build $target
 }
 
@@ -474,9 +519,9 @@ if ($doRelease) {
 } else {
     $v = Format-SemVer $target
     if ($interactive) {
-        Write-Host "Built v$v into dist/release. Nothing was published. Run this script again and choose 2 to release it."
+        Write-Host "Built v$v into dist/release. Nothing was published. Run this script again and choose 3 to release it."
     } else {
-        Write-Host "Nothing was published. To release: ./publish.ps1 -Version $v -Release"
+        Write-Host "Nothing was published. To release: ./build.ps1 -Version $v -Release"
     }
 }
 

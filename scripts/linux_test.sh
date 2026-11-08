@@ -1,7 +1,7 @@
 #!/bin/bash
 # Drives the Linux build inside tmux with real keystrokes against a fake Steam tree.
 # Run from Windows:  wsl -d Ubuntu-22.04 -e bash /mnt/c/Users/sebsz/source/punk/scripts/linux_test.sh
-# Needs: tmux in the distro, and dist/linux-x64/Punk published (./publish.ps1).
+# Needs: tmux in the distro, and dist/linux-x64/Punk published (./build.ps1).
 BIN=${PUNK_BIN:-/mnt/c/Users/sebsz/source/punk/dist/linux-x64/Punk}
 H=$(mktemp -d)
 S=$H/.steam/steam/steamapps
