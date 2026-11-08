@@ -309,26 +309,61 @@ function Invoke-Build([version]$target) {
 
     if ((Get-CsprojVersion) -ne $target) { Set-CsprojVersion $target }
 
+    $csprojFull = "$PSScriptRoot\Punk\Punk.csproj"
+    $rids = 'win-x64', 'linux-x64'
+
     Write-Host "Building Punk $v"
-    foreach ($rid in 'win-x64', 'linux-x64') {
-        dotnet publish "$PSScriptRoot\Punk\Punk.csproj" -c Release -r $rid --self-contained `
-            -p:PublishSingleFile=true -p:Version=$v -o "$distDir\$rid"
-        if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($rid) failed (exit $LASTEXITCODE)" }
+    # One restore for both platforms; the publishes then run side by side with --no-restore.
+    dotnet restore $csprojFull "-p:RuntimeIdentifiers=$($rids -join ';')" --nologo
+    if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed (exit $LASTEXITCODE)" }
+
+    $publish = $rids | ForEach-Object -Parallel {
+        $proj = $using:csprojFull
+        $ver = $using:v
+        $dist = $using:distDir
+        $log = dotnet publish $proj -c Release -r $_ --self-contained --no-restore `
+            -p:PublishSingleFile=true "-p:Version=$ver" -o "$dist\$_" 2>&1
+        [pscustomobject]@{ Rid = $_; Ok = ($LASTEXITCODE -eq 0); Log = ($log | Out-String) }
+    } -ThrottleLimit $rids.Count
+
+    # Shared obj/ intermediates can collide when both run at once: retry any failure on its own.
+    foreach ($r in @($publish | Where-Object { -not $_.Ok })) {
+        Write-Host "Parallel publish of $($r.Rid) failed, retrying it alone..."
+        dotnet publish $csprojFull -c Release -r $r.Rid --self-contained --no-restore `
+            -p:PublishSingleFile=true "-p:Version=$v" -o "$distDir\$($r.Rid)"
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($($r.Rid)) failed (exit $LASTEXITCODE)`n$($r.Log)" }
     }
 
-    # Package: update zips, installer, checksums.
+    # Package: update zips, installer, checksums. The two zips and the installer are independent, so they run together.
     Remove-Item $releaseDir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path $releaseDir | Out-Null
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $isccArgs = @("/DVersion=$v", "/DSourceDir=$distDir\win-x64", "/DOutputDir=$releaseDir", "$PSScriptRoot\installer\punk.iss")
 
-    # Update zips: files at the zip root, which is what the in-app updater expects.
-    foreach ($rid in 'win-x64', 'linux-x64') {
-        [IO.Compression.ZipFile]::CreateFromDirectory("$distDir\$rid", "$releaseDir\punk-$rid.zip",
-            [IO.Compression.CompressionLevel]::Optimal, $false)
-    }
+    $packaged = 'zip:win-x64', 'zip:linux-x64', 'installer' | ForEach-Object -Parallel {
+        $ok = $true
+        $log = ''
+        try {
+            if ($_ -eq 'installer') {
+                $log = (& $using:iscc $using:isccArgs 2>&1 | Out-String)
+                $ok = $LASTEXITCODE -eq 0
+            } else {
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $rid = $_.Substring(4)
+                $dist = $using:distDir
+                $rel = $using:releaseDir
+                # Update zip: files at the zip root, which is what the in-app updater expects.
+                [IO.Compression.ZipFile]::CreateFromDirectory("$dist\$rid", "$rel\punk-$rid.zip",
+                    [IO.Compression.CompressionLevel]::Optimal, $false)
+            }
+        } catch {
+            $ok = $false
+            $log = $_.Exception.Message
+        }
+        [pscustomobject]@{ Step = $_; Ok = $ok; Log = $log }
+    } -ThrottleLimit 3
 
-    & $iscc "/DVersion=$v" "/DSourceDir=$distDir\win-x64" "/DOutputDir=$releaseDir" "$PSScriptRoot\installer\punk.iss"
-    if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed (exit $LASTEXITCODE)" }
+    $bad = @($packaged | Where-Object { -not $_.Ok })
+    if ($bad) { throw "Packaging failed: $(($bad | ForEach-Object Step) -join ', ')`n$(($bad | ForEach-Object Log) -join "`n")" }
 
     $assets = Get-ReleaseAssets $v
     $sumLines = foreach ($a in $assets) { "$((Get-FileHash $a -Algorithm SHA256).Hash.ToLower())  $(Split-Path $a -Leaf)" }
@@ -354,7 +389,8 @@ function Get-ReleaseNotes($previous, [string]$tag) {
 function Publish-Release([version]$version, [string]$notes) {
     $v = Format-SemVer $version
     $tag = "v$v"
-    $assets = Get-ReleaseAssets $v
+    # The updater reads SHA256SUMS from the release, so it must be uploaded with the binaries.
+    $assets = @(Get-ReleaseAssets $v) + "$releaseDir\SHA256SUMS"
     foreach ($a in $assets) { if (-not (Test-Path $a)) { throw "Missing $(Split-Path $a -Leaf). Build the version first (option 1)." } }
 
     Write-Host ""
