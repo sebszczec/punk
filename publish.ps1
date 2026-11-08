@@ -344,6 +344,13 @@ function Invoke-Build([version]$target) {
 
 # --- Publish to GitHub ------------------------------------------------------
 
+# One line per commit since the previous release (or the last 50 commits for the first release).
+function Get-ReleaseNotes($previous, [string]$tag) {
+    $range = if ($previous) { "v$(Format-SemVer $previous)..HEAD" } else { 'HEAD' }
+    $lines = git log --max-count 50 '--pretty=format:- %s' $range
+    if ($lines) { $lines -join "`n" } else { "Punk $tag" }
+}
+
 function Publish-Release([version]$version, [string]$notes) {
     $v = Format-SemVer $version
     $tag = "v$v"
@@ -358,7 +365,7 @@ function Publish-Release([version]$version, [string]$notes) {
     # Re-check: a release may have been published while the build ran.
     $state = Get-GitHubState
     Assert-VersionFree $version $state $true
-    $hasEarlierRelease = [bool](Get-HighestPublished $state)
+    $previous = Get-HighestPublished $state
 
     # Punk.csproj must carry this version in the release commit.
     if ((Get-CsprojVersion) -ne $version) { Set-CsprojVersion $version }
@@ -374,11 +381,9 @@ function Publish-Release([version]$version, [string]$notes) {
     if ($LASTEXITCODE -ne 0) { throw "git push ($tag) failed." }
 
     # Draft first, so releases/latest (used by the in-app updater) never points at a half-uploaded release.
-    # Generated notes diff against the previous release; the first release has none, so use fixed text there.
-    $notesArgs = if ($notes) { @('--notes', $notes) }
-                 elseif ($hasEarlierRelease) { @('--generate-notes') }
-                 else { @('--notes', "Punk $tag") }
-    gh release create $tag @assets --repo $repo --draft --title "Punk $tag" @notesArgs
+    # Notes are written here, not with gh's --generate-notes, which failed on this machine.
+    $notesText = if ($notes) { $notes } else { Get-ReleaseNotes $previous $tag }
+    gh release create $tag @assets --repo $repo --draft --title "Punk $tag" --notes $notesText
     if ($LASTEXITCODE -ne 0) { throw "gh release create failed. Delete the draft release and tag $tag on GitHub before retrying." }
     gh release edit $tag --repo $repo --draft=false
     if ($LASTEXITCODE -ne 0) { throw "Assets uploaded, but publishing the draft failed. Publish it on GitHub." }
